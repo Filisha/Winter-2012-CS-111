@@ -286,6 +286,7 @@ command_t complete_command (command_stream_t s)
     seq_com->u.command[1] = sequence_b;
     first_c = seq_com;
   }
+  
   return first_c;
 }
 
@@ -315,7 +316,7 @@ command_t and_or (command_stream_t s)
   return first_c;
 }
 
-//Parse pipeline commands
+// Parse pipeline commands
 command_t pipeline (command_stream_t s)
 {
   command_t first_c = command_parse(s);
@@ -455,7 +456,7 @@ command_t subshell (command_stream_t s)
   return shell_command;
 }
 
-//Parses simple command
+// Parses simple command
 command_t simple_command (command_stream_t s)
 {
   int index = 0;

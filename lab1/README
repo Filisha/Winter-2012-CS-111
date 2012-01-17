@@ -2,3 +2,35 @@ This is a skeleton for CS 111 Lab 1.
 
 Replace this README file with notes on your implementation.
 Mentions any special features or limitations.
+
+////////////////////////////////////////////////////////////////////////////////
+// Lab 1, Part A
+////////////////////////////////////////////////////////////////////////////////
+
+Rather than storing the command stream data from the filestream into a char 
+buffer, the command stream stored the filestream, along with a method for 
+retrieving the next byte from the filestream, allowing us to use a smaller 
+character buffer that exclusively stored retrieved, but unused characters.
+
+The command stream also kept track of the current and next tokens parsed from
+the filestream. Therefore, retrieving a token would also result in constructing
+the next available token.
+
+Tokens are retrieved by attempting to read characters from the filestream until
+complete tokens are formed. 
+
+A starting token from the file stream was then used to construct commands, 
+starting by checking for and_or commands, which in particular are left 
+associative and have to be parsed before any right associative commands. It then 
+uses tokens that represent commands to form individual commands and groups of 
+commands, in a structure resembling a binary tree
+
+e.g. a || ( b && c || d )
+
+	        ||
+	       /  \
+	      a    ||
+		  /  \
+	        &&     d
+	       /  \
+	     b      c
