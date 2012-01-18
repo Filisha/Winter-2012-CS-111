@@ -378,7 +378,7 @@ command_t command_parse (command_stream_t s)
               s->line_number);
       }
       
-      subshell_c->input = checked_malloc(strlen(s->current_token_string));
+      subshell_c->input = checked_malloc(strlen(s->current_token_string) + 1);
       strcpy(subshell_c->input, s->current_token_string);
     }
     
@@ -393,7 +393,7 @@ command_t command_parse (command_stream_t s)
               s->line_number);
       }
       
-      subshell_c->output = checked_malloc(strlen(s->current_token_string));
+      subshell_c->output = checked_malloc(strlen(s->current_token_string) + 1);
       strcpy(subshell_c->output, s->current_token_string);
     }
     
@@ -414,7 +414,7 @@ command_t command_parse (command_stream_t s)
               s->line_number);
       }
       
-      simple_c->input = checked_malloc(strlen(s->current_token_string));
+      simple_c->input = checked_malloc(strlen(s->current_token_string) + 1);
       strcpy(simple_c->input, s->current_token_string);
     }
     
@@ -429,7 +429,7 @@ command_t command_parse (command_stream_t s)
               s->line_number);
       }
       
-      simple_c->output = checked_malloc(strlen(s->current_token_string));
+      simple_c->output = checked_malloc(strlen(s->current_token_string) + 1);
       strcpy(simple_c->output, s->current_token_string);
     }
     return simple_c;
@@ -486,7 +486,7 @@ command_t simple_command (command_stream_t s)
   char** words_array = checked_malloc(sizeof(char*) * 50); 
   
   //Allocate the string's space
-  words_array[index] = checked_malloc(strlen(s->current_token_string));
+  words_array[index] = checked_malloc(strlen(s->current_token_string) + 1);
   strcpy(words_array[index], s->current_token_string);
   index++;
   
@@ -494,7 +494,7 @@ command_t simple_command (command_stream_t s)
   while(check_next_token(s) == WORD)
   {
     read_next_token(s);
-    words_array[index] = checked_malloc(strlen(s->current_token_string));
+    words_array[index] = checked_malloc(strlen(s->current_token_string) + 1);
     strcpy(words_array[index], s->current_token_string);
     index++;
 
