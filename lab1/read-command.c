@@ -131,22 +131,27 @@ enum token_type read_next_token(command_stream_t cmd_stream)
           break;
         }
         
-        // Otherwise, add the array forming the next token
-        next_token_string[index] = current_char;
-        index++;
-        
-        // Grow allocated memory when necessary
-        // The size of next_token_string and current_token_string are kept
-        // equal because anything in next_token_string will be cycled into
-        // current_token_string        
+        // Grow allocated memory when necessary. Size of next_token_string 
+        // and current_token_string are equal because all data in 
+        // next_token_string passes into current_token_string        
         if(index >= cmd_stream->max_token_length)
         {
           command_stream_reallocate(cmd_stream);
           next_token_string = cmd_stream->next_token_string;
         }
+        
+        // Add the array forming the next token
+        next_token_string[index] = current_char;
+        index++;
+        
       }
 
-      // Add the end zero byte
+      // Allocate memory if needed, then add the zero byte
+      if(index >= cmd_stream->max_token_length)
+      {
+        command_stream_reallocate(cmd_stream);
+        next_token_string = cmd_stream->next_token_string;
+      }
       next_token_string[index] = 0;     
       cmd_stream->next_token = WORD;
       break;
@@ -494,7 +499,7 @@ command_t simple_command (command_stream_t s)
     index++;
 
     //If the number of words becomes to long, reallocate space  
-    if(index > array_max)
+    if(index >= array_max)
     {
       array_max += 50;
       words_array = checked_realloc(words_array, array_max);
