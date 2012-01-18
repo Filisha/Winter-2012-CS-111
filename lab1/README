@@ -1,3 +1,7 @@
+Group, Discussion, and ID Numbers
+ - Cameron Solomon	
+ - Ervin Sukardi	1A	203 808 277
+
 This is a skeleton for CS 111 Lab 1.
 
 Replace this README file with notes on your implementation.
@@ -7,23 +11,25 @@ Mentions any special features or limitations.
 // Lab 1, Part A
 ////////////////////////////////////////////////////////////////////////////////
 
-Rather than storing the command stream data from the filestream into a char 
-buffer, the command stream stored the filestream, along with a method for 
-retrieving the next byte from the filestream, allowing us to use a smaller 
+Rather than storing the command stream data from the file stream into a char 
+buffer, the command stream stored the file stream, along with a method for 
+retrieving the next byte from the file stream, allowing us to use a smaller 
 character buffer that exclusively stored retrieved, but unused characters.
 
 The command stream also kept track of the current and next tokens parsed from
-the filestream. Therefore, retrieving a token would also result in constructing
+the file stream. Therefore, retrieving a token would also result in constructing
 the next available token.
 
-Tokens are retrieved by attempting to read characters from the filestream until
-complete tokens are formed. 
+A token is retrieved by attempting to read characters from the file stream 
+until a complete token is formed. Token information is stored using an enum and 
+a dynamically allocated character array, whose size is grown as needed.
 
-A starting token from the file stream was then used to construct commands, 
-starting by checking for and_or commands, which in particular are left 
-associative and have to be parsed before any right associative commands. It then 
-uses tokens that represent commands to form individual commands and groups of 
-commands, in a structure resembling a binary tree
+A starting token from the file stream is then used to construct commands, 
+starting by checking for and_or commands. It then continues to retrieve tokens
+until a complete command is able to be formed.
+A general command may be formed out of simple commands and special tokens, and
+are organized in a binary tree-like structure. Commands are parsed so that
+interpreting the command is left-associative.
 
 e.g. a || ( b && c || d )
 
@@ -34,3 +40,6 @@ e.g. a || ( b && c || d )
 	        &&     d
 	       /  \
 	     b      c
+
+In the case of an error, such as incorrect syntax, the program aborts, and 
+provides an error message and a line number to the location of the error

@@ -29,6 +29,24 @@ g<h
 
 # This is a weird example: nobody would ever want to run this.
 a<b>c|d<e>f|g<h>i
+
+# Check ignoring multiple comments
+# Sanity Check
+a && b || c > files    #comment tester
+
+# Use of parenthesis
+a || ( b && (c || d) || e ) > files         
+
+# Use of semicolons
+(cat a; cat b)
+
+# Use of pipes
+a || b && (c || d) && e; f && g | h || i
+
+# Long Strings / Memory Allocation
+abcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcde &&
+abcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcde
+
 EOF
 
 cat >test.exp <<'EOF'
@@ -76,6 +94,56 @@ cat >test.exp <<'EOF'
     d<e>f \
   |
     g<h>i
+# 9
+      a \
+    &&
+      b \
+  ||
+    c>files
+# 10
+    a \
+  ||
+    (
+         b \
+       &&
+         (
+            c \
+          ||
+            d
+         ) \
+     ||
+       e
+    )>files
+# 11
+  (
+     cat a \
+   ;
+     cat b
+  )
+# 12
+      a \
+    ||
+      b \
+  &&
+    (
+       c \
+     ||
+       d
+    ) \
+  &&
+    e
+# 13
+      f \
+    &&
+        g \
+      |
+        h \
+  ||
+    i
+# 14
+    abcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcde \
+  &&
+    abcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcdeabcde
 EOF
 
 ../timetrash -p test.sh >test.out 2>test.err || exit

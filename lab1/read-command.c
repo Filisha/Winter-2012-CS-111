@@ -12,6 +12,29 @@
 #include <string.h>
 #include <ctype.h>
 
+// Increase size allocation by 50 bytes
+void command_stream_reallocate(command_stream_t cmd_stream)
+{
+  cmd_stream->max_token_length += 50;
+  
+  cmd_stream->next_token_string = 
+  checked_realloc(  cmd_stream->next_token_string, 
+                    cmd_stream->max_token_length * sizeof(char));
+  
+  cmd_stream->current_token_string = 
+  checked_realloc(  cmd_stream->current_token_string, 
+                    cmd_stream->max_token_length * sizeof(char));
+  
+/*
+  if( !cmd_stream->next_token_string || 
+     !cmd_stream->current_token_string   )
+  {
+    error(1, 0, "%d: Unable to allocate memory for long word", 
+          cmd_stream->line_number);
+  }
+*/
+}
+
 int get_next_char(command_stream_t cmd_stream) 
 {
   int current_char;
@@ -116,27 +139,10 @@ enum token_type read_next_token(command_stream_t cmd_stream)
         // The size of next_token_string and current_token_string are kept
         // equal because anything in next_token_string will be cycled into
         // current_token_string        
-        if(index > cmd_stream->max_token_length)
+        if(index >= cmd_stream->max_token_length)
         {
-          cmd_stream->max_token_length += 50;
-          
-          cmd_stream->next_token_string = 
-            checked_realloc(  cmd_stream->next_token_string, 
-                              cmd_stream->max_token_length * sizeof(char));
-          
+          command_stream_reallocate(cmd_stream);
           next_token_string = cmd_stream->next_token_string;
-          
-          cmd_stream->current_token_string = 
-            checked_realloc(  cmd_stream->current_token_string, 
-                              cmd_stream->max_token_length * sizeof(char));
-          
-/*        if( !cmd_stream->next_token_string || 
-              !cmd_stream->current_token_string   )
-          {
-            error(1, 0, "%d: Unable to allocate memory for long word", 
-                  cmd_stream->line_number);
-          }
-*/
         }
       }
 
@@ -262,7 +268,7 @@ enum token_type check_next_token(command_stream_t s)
   return s->next_token;
 }
 
-// Parse right-associative sequence commands
+// Parse sequence commands
 command_t complete_command (command_stream_t s)
 {
   command_t first_c = and_or(s);
@@ -344,7 +350,9 @@ command_t command_parse (command_stream_t s)
 {
   // Optional newlines as white space may appear before a simple command 
   // or the ( of a subshell
-  if(check_next_token(s) == NEWLINE)
+  // Loop multiple times to eliminate all newlines, which may occur when
+  // using multiple lines of comments
+  while(check_next_token(s) == NEWLINE)
   {
     read_next_token(s);
   }
