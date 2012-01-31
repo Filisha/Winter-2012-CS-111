@@ -171,7 +171,7 @@ execute_pipe (command_t c)
     {
       // The 2nd child now runs, first part of the pipe
       close(buf[1]);
-      if( dup2(buf[0], stdout) == -1 )
+      if( dup2(buf[0], 1) == -1 )
         error (1, errno,  "dup2 error");
       execute_generic(c->u.command[0]);
       _exit(c->u.command[0]->status);
@@ -183,7 +183,7 @@ execute_pipe (command_t c)
   {
     // First child, command 2nd in the pipe
     close(buf[0]);
-      if( dup2(buf[1], stdin)== -1 )
+      if( dup2(buf[1], 0)== -1 )
         error (1, errno,  "dup2 error");
       execute_generic(c->u.command[1]);
       _exit(c->u.command[1]->status);
