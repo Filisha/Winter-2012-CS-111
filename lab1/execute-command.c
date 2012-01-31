@@ -130,6 +130,9 @@ void execute_io_command(command_t c)
 void
 execute_pipe (command_t c)
 {
+	
+	/* // UNCOMMENT BEFORE COMMIT!!!
+	 
   int status;
   int buf[2];
   pid_t returned_pid;
@@ -188,6 +191,12 @@ execute_pipe (command_t c)
   else
     error(1, 0, "Could not fork");
   
+	*/
+	
+	
+	
+	
+	
   /*
   if(pid > 0)
   {
