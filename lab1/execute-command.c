@@ -104,7 +104,27 @@ void execute_sequence(command_t c)
 
 void execute_io_command(command_t c)
 {
-  error (1, 0, "simple and subshell command execution not yet implemented");
+  int status; 
+	pid_t pid = fork();
+	if(pid < 0)
+	{
+		// Parent process
+		waitpid(pid, &status, 0);
+		c->status = status;
+	}
+	else if(pid == 0)
+	{
+		// Child process
+	}
+	else
+		error(1, 0, "Could not fork");
+	
+	
+	
+	
+	
+	
+	error (1, 0, "simple and subshell command execution not yet implemented");
 }
 
 void
@@ -203,19 +223,10 @@ execute_pipe (command_t c)
       error(1, 0, "Could not fork");
   }
   else
-<<<<<<< HEAD
     error(1, 0, "Could not fork");
+	 */
 }
-
-void
-execute_simple_command(command_t c)
-{
-	
-=======
-    error(1, 0, "Could not fork");
-*/
-}
-
+	 
 void
 execute_command (command_t c, int time_travel)
 {
