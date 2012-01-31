@@ -19,7 +19,8 @@ command_status (command_t c)
 
 void execute_generic(command_t c)
 {
-  switch(c->command_type)
+  switch(c->type)
+	{
     case AND_COMMAND:
       execute_and(c);
       break;
@@ -38,6 +39,7 @@ void execute_generic(command_t c)
       break;
     default:
       error(1, 0, "Invalid command type");
+	}
 }
 
 void execute_and(command_t c)
@@ -47,10 +49,10 @@ void execute_and(command_t c)
   {
     // If the first command succeeds, it depends on the 2nd command
     execute_generic(c->u.command[1]);
-    c->status = u.command[1]->status;
+    c->status = c->u.command[1]->status;
   }
   else
-    c->status = u.command[0]->status;
+    c->status = c->u.command[0]->status;
   
 }
 
@@ -61,10 +63,10 @@ void execute_or(command_t c)
   {
     // If the first command fails, success depends on the 2nd command
     execute_generic(c->u.command[1]);
-    c->status = u.command[1]->status;
+    c->status = c->u.command[1]->status;
   }
   else
-    c->status = u.command[0]->status;
+    c->status = c->u.command[0]->status;
   
 }
 
@@ -145,8 +147,12 @@ execute_pipe (command_t c)
   }
   else
     error(1, 0, "Could not fork");
-  
-  
+}
+
+void
+execute_simple_command(command_t c)
+{
+	
 }
 
 void
