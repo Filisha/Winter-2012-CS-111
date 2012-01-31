@@ -49,14 +49,25 @@ void print_command (command_t);
 /* Based on command type, executes the appropriate function. */
 void execute_generic(command_t);
 
+/* If the first part is false, returns that immediately, otherwise
+   returns the status of the 2nd command */
 void execute_and(command_t);
 
+/* If the first part is true, returns that immediately, otherwise
+   returns the status of the 2nd command */
 void execute_or(command_t);
 
+/* Executes the first command in sequence, waits for that to complete,
+   then executes the 2nd command.  Exit status is that of the 2nd command */
 void execute_sequence(command_t);
 
+/* Executes simple and subshell commands, with the possibilty of input
+   and output (< and >) accounted for here */
 void execute_io_command(command_t);
 
+/* Executes both and allows the first commands output to be piped to
+   the second command's input.  Returns when the 2nd command finishes and
+   gives the 2nd command's exit status */
 void execute_pipe(command_t);
 
 /* Execute a command.  Use "time travel" if the integer flag is

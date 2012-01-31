@@ -40,11 +40,67 @@ void execute_generic(command_t c)
       error(1, 0, "Invalid command type");
 }
 
-void execute_and(command_t c);
+void execute_and(command_t c)
+{
+  execute_generic(c->u.command[0]);
+  if(c->u.command[0]->status == 0)
+  {
+    // If the first command succeeds, it depends on the 2nd command
+    execute_generic(c->u.command[1]);
+    c->status = u.command[1]->status;
+  }
+  else
+    c->status = u.command[0]->status;
+  
+}
 
-void execute_or(command_t c);
+void execute_or(command_t c)
+{
+  execute_generic(c->u.command[0]);
+  if(c->u.command[0]->status != 0)
+  {
+    // If the first command fails, success depends on the 2nd command
+    execute_generic(c->u.command[1]);
+    c->status = u.command[1]->status;
+  }
+  else
+    c->status = u.command[0]->status;
+  
+}
 
-void execute_sequence(command_t c);
+void execute_sequence(command_t c)
+{
+  int status;
+  pid_t pid = fork();
+  if(pid > 0)
+  {
+    // Parent process
+    waitpid(pid, &status, 0);
+    c->status = status;
+  }
+  else if(pid == 0)
+  {
+    //Child process
+    pid = fork();
+    if( pid > 0)
+    {
+      // The child continues
+      waitpid(pid, &status, 0);
+      execute_generic(c->u.command[1]);
+      _exit(c->u.command[1]->status);
+    }
+    else if( pid == 0)
+    {
+      // The child of the child now runs
+      execute_generic(c->u.command[0]);
+      _exit(c->u.command[0]->status);
+    }
+    else
+      error(1, 0, "Could not fork");
+  }
+  else
+    error(1, 0, "Could not fork");
+}
 
 void execute_io_command(command_t c);
 
@@ -73,7 +129,7 @@ execute_pipe (command_t c)
       if( dup2(buf[1], stdin)== -1 )
         error (1, errno,  "dup2 error");
       execute_generic(c->u.command[1]); //TODO: Make sure interface is correct
-      _exit(c->u.command[1].status);
+      _exit(c->u.command[1]->status);
     }
     else if( pid == 0)
     {
@@ -82,7 +138,7 @@ execute_pipe (command_t c)
       if( dup2(buf[0], stdout) == -1 )
         error (1, errno,  "dup2 error");
       execute_generic(c->u.command[0]);
-      _exit(c->u.command[0].status);
+      _exit(c->u.command[0]->status);
     }
     else
       error(1, 0, "Could not fork");
