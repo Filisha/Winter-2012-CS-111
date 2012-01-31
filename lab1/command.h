@@ -46,6 +46,19 @@ command_t read_command_stream (command_stream_t stream);
 /* Print a command to stdout, for debugging.  */
 void print_command (command_t);
 
+/* Based on command type, executes the appropriate function. */
+void execute_generic(command_t);
+
+void execute_and(command_t);
+
+void execute_or(command_t);
+
+void execute_sequence(command_t);
+
+void execute_io_command(command_t);
+
+void execute_pipe(command_t);
+
 /* Execute a command.  Use "time travel" if the integer flag is
    nonzero.  */
 void execute_command (command_t, int);
