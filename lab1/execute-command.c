@@ -157,7 +157,7 @@ execute_pipe (command_t c)
         waitpid(pid_2, &status, 0);
         return;
       }
-      else if(returned pid == pid_2)
+      else if(returned_pid == pid_2)
       {
         waitpid(pid_1, &status, 0);
         c->status = status;
@@ -234,7 +234,7 @@ execute_command (command_t c, int time_travel)
      add auxiliary functions and otherwise modify the source code.
      You can also use external functions defined in the GNU C Library.  */
      
-  if(timetravel == 1)
+  if(time_travel == 1)
     error (1, 0, "timetravel command execution not yet implemented");
   else
     execute_generic(c);
