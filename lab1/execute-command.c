@@ -216,7 +216,6 @@ execute_pipe (command_t c)
       if( returned_pid == pid_1 )
       {
         c->status = status;
-        // kill the other process?
         waitpid(pid_2, &status, 0);
         return;
       }
@@ -230,8 +229,8 @@ execute_pipe (command_t c)
     else if( pid_2 == 0 )
     {
       // The 2nd child now runs, first part of the pipe
-      close(buf[1]);
-      if( dup2(buf[0], 1) == -1 )
+      close(buf[0]);
+      if( dup2(buf[1], 1) == -1 )
         error (1, errno,  "dup2 error");
       execute_generic(c->u.command[0]);
       _exit(c->u.command[0]->status);
@@ -242,57 +241,14 @@ execute_pipe (command_t c)
   else if( pid_1 == 0)
   {
     // First child, command 2nd in the pipe
-    close(buf[0]);
-      if( dup2(buf[1], 0)== -1 )
+    close(buf[1]);
+      if( dup2(buf[0], 0)== -1 )
         error (1, errno,  "dup2 error");
       execute_generic(c->u.command[1]);
       _exit(c->u.command[1]->status);
   }
   else
     error(1, 0, "Could not fork");
-  
-	
-	
-	
-	
-	
-  /*
-  if(pid > 0)
-  {
-    // Parent process
-    waitpid(pid, &status, 0);
-    c->status = status;
-  }
-  else if(pid == 0)
-  {
-    //Child process
-    if (pipe(buf) == -1)
-      error (1, errno, "cannot create pipe");
-    pid = fork();
-    if( pid > 0)
-    {
-      // The child continues
-      close(buf[0]);
-      if( dup2(buf[1], stdin)== -1 )
-        error (1, errno,  "dup2 error");
-      execute_generic(c->u.command[1]); //TODO: Make sure interface is correct
-      _exit(c->u.command[1]->status);
-    }
-    else if( pid == 0)
-    {
-      // The child of the child now runs, first part of the pipe
-      close(buf[1]);
-      if( dup2(buf[0], stdout) == -1 )
-        error (1, errno,  "dup2 error");
-      execute_generic(c->u.command[0]);
-      _exit(c->u.command[0]->status);
-    }
-    else
-      error(1, 0, "Could not fork");
-  }
-  else
-    error(1, 0, "Could not fork");
-	 */
 }
 	 
 void
