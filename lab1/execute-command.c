@@ -11,6 +11,9 @@
 #include <error.h>
 #include <errno.h>
 
+#include <fcntl.h>
+
+
 int
 command_status (command_t c)
 {
@@ -102,37 +105,81 @@ void execute_sequence(command_t c)
     error(1, 0, "Could not fork");
 }
 
-void execute_io_command(command_t c)
+void execute_simple(command_t c)
 {
   int status; 
 	pid_t pid = fork();
-	if(pid < 0)
+	
+	if(pid > 0)
 	{
-		// Parent process
+		// Parent waits for child, then stores status
 		waitpid(pid, &status, 0);
 		c->status = status;
 	}
 	else if(pid == 0)
 	{
-		// Child process
+		// In a semicolon simple command, exit as fast as possible
+		if(c->u.word[0][0] == ':')
+			_exit(0);
+		
+		// Check for a piped input
+		// TODO: This hasn't been tested, probably doesn't work
+		if(c->input != NULL)
+		{
+			int fd_in = open(c->input, O_RDONLY);
+			if(fd_in < 0)
+				error(1, 0, "Unable to read input file");
+			
+			if(dup2(fd_in, 0) < 0)
+				error(1, 0, "Problem using dup2 for input");
+			
+			if(close(fd_in) < 0)
+				error(1, 0, "Problem closing input file");
+		}
+		
+		// Check for a piped output
+		// TODO: Having problems reading the output file
+		if(c->output != NULL)
+		{
+			printf("Output file: %s \n", c->output);
+			int fd_out = open(c->output, O_CREAT| O_RDWR | O_APPEND);
+			if(fd_out < 0)
+				error(1, 0, "Problem reading output file");
+
+			if(dup2(fd_out, 1) < 0)
+				error(1, 0, "Problem using dup2 for output");
+			
+			if(close(fd_out) < 0)
+				error(1, 0, "Problem closing output file");
+		}
+		
+		// Execute the simple command program
+		execvp(c->u.word[0], c->u.word );
+		error(1, 0, "Invalid simple command");
 	}
 	else
 		error(1, 0, "Could not fork");
-	
-	
-	
-	
-	
-	
-	error (1, 0, "simple and subshell command execution not yet implemented");
+}
+
+void execute_io_command(command_t c)
+{
+	if(c->type == SIMPLE_COMMAND)
+	{
+		execute_simple(c);
+	}
+	else if(c->type == SUBSHELL_COMMAND)
+	{
+		// Execute contents of subshell
+		execute_generic(c->u.subshell_command);
+		// error (1, 0, "subshell command execution not fully implemented");
+	}
+	else
+		error(1,0, "I have no idea why I'm here. What's happening?");
 }
 
 void
 execute_pipe (command_t c)
 {
-	
-	/* // UNCOMMENT BEFORE COMMIT!!!
-	 
   int status;
   int buf[2];
   pid_t returned_pid;
@@ -191,7 +238,6 @@ execute_pipe (command_t c)
   else
     error(1, 0, "Could not fork");
   
-	*/
 	
 	
 	
