@@ -129,7 +129,8 @@ void setup_io(command_t c)
 	if(c->output != NULL)
 	{
 		// Be sure to set flags 
-		int fd_out = open(c->output, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+		int fd_out = open(c->output, O_CREAT | O_WRONLY | O_TRUNC, 
+											S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
 		if( fd_out < 0)
 			error(1, 0, "Problem reading output file: %s", c->output);
 		
