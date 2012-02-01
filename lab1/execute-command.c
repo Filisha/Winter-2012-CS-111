@@ -11,9 +11,8 @@
 #include <error.h>
 #include <errno.h>
 
-#include <fcntl.h>
-#include <sys/stat.h>
-
+#include <fcntl.h>			// File Control Options
+#include <sys/stat.h>		// File Permission Options
 
 int
 command_status (command_t c)
@@ -106,6 +105,7 @@ void execute_sequence(command_t c)
     error(1, 0, "Could not fork");
 }
 
+
 // If a command has particular input/output characteristics,
 // this function will open and redirect the appropriate i/o locations
 void setup_io(command_t c)
@@ -115,7 +115,7 @@ void setup_io(command_t c)
 	{
 		int fd_in = open(c->input, O_RDWR);
 		if( fd_in < 0)
-			error(1, 0, "Unable to read input file");
+			error(1, 0, "Unable to read input file: %s", c->input);
 		
 		if( dup2(fd_in, 0) < 0)
 			error(1, 0, "Problem using dup2 for input");
@@ -128,9 +128,10 @@ void setup_io(command_t c)
 	// and if it doesn't exist yet, should be created
 	if(c->output != NULL)
 	{
-		int fd_out = open(c->output, O_CREAT | O_RDWR, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+		// Be sure to set flags 
+		int fd_out = open(c->output, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
 		if( fd_out < 0)
-			error(1, 0, "Problem reading output file");
+			error(1, 0, "Problem reading output file: %s", c->output);
 		
 		if( dup2(fd_out, 1) < 0)
 			error(1, 0, "Problem using dup2 for output");
@@ -139,6 +140,7 @@ void setup_io(command_t c)
 			error(1, 0, "Problem closing output file");
 	}	
 }
+
 
 void execute_simple(command_t c)
 {
@@ -153,6 +155,7 @@ void execute_simple(command_t c)
 	}
 	else if(pid == 0)
 	{
+		// Set input-output characteristics
 		setup_io(c);
 		
 		// In a semicolon simple command, exit as fast as possible
@@ -167,9 +170,9 @@ void execute_simple(command_t c)
 		error(1, 0, "Could not fork");
 }
 
+
 void execute_io_command(command_t c)
 {
-	// Setup input-output characteristics
 
 	if(c->type == SIMPLE_COMMAND)
 	{
@@ -177,10 +180,11 @@ void execute_io_command(command_t c)
 	}
 	else if(c->type == SUBSHELL_COMMAND)
 	{
+		// Set input-output characteristics
 		setup_io(c);
+		
 		// Execute contents of subshell
 		execute_generic(c->u.subshell_command);
-		// error (1, 0, "subshell command execution not fully implemented");
 	}
 	else
 		error(1,0, "Error with processing i/o command");
