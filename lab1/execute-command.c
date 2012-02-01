@@ -105,6 +105,40 @@ void execute_sequence(command_t c)
     error(1, 0, "Could not fork");
 }
 
+// If a command has particular input/output characteristics,
+// this function will open and redirect the appropriate i/o locations
+void setup_io(command_t c)
+{
+	// Check for an input characteristic, which can be read
+	if(c->input != NULL)
+	{
+		int fd_in = open(c->input, O_RDWR);
+		if( fd_in < 0)
+			error(1, 0, "Unable to read input file");
+		
+		if( dup2(fd_in, 0) < 0)
+			error(1, 0, "Problem using dup2 for input");
+		
+		if( close(fd_in) < 0)
+			error(1, 0, "Problem closing input file");
+	}
+	
+	// Check for an output characteristic, which can be read and written on,
+	// and if it doesn't exist yet, should be created
+	if(c->output != NULL)
+	{
+		int fd_out = open(c->output, O_CREAT | O_RDWR);
+		if( fd_out < 0)
+			error(1, 0, "Problem reading output file");
+		
+		if( dup2(fd_out, 1) < 0)
+			error(1, 0, "Problem using dup2 for output");
+		
+		if( close(fd_out) < 0)
+			error(1, 0, "Problem closing output file");
+	}	
+}
+
 void execute_simple(command_t c)
 {
   int status; 
@@ -118,40 +152,20 @@ void execute_simple(command_t c)
 	}
 	else if(pid == 0)
 	{
+		int k = 0;
+		for(k = 0; k < 1000; k++)
+		{
+			if(c->u.word[k] != NULL)
+				printf("%s ", c->u.word[k]);
+			else
+				break;
+		}
+		printf("\n");
+		
+		
 		// In a semicolon simple command, exit as fast as possible
 		if(c->u.word[0][0] == ':')
 			_exit(0);
-		
-		// Check for a piped input
-		// TODO: This hasn't been tested, probably doesn't work
-		if(c->input != NULL)
-		{
-			int fd_in = open(c->input, O_RDONLY);
-			if(fd_in < 0)
-				error(1, 0, "Unable to read input file");
-			
-			if(dup2(fd_in, 0) < 0)
-				error(1, 0, "Problem using dup2 for input");
-			
-			if(close(fd_in) < 0)
-				error(1, 0, "Problem closing input file");
-		}
-		
-		// Check for a piped output
-		// TODO: Having problems reading the output file
-		if(c->output != NULL)
-		{
-			printf("Output file: %s \n", c->output);
-			int fd_out = open(c->output, O_CREAT| O_RDWR | O_APPEND);
-			if(fd_out < 0)
-				error(1, 0, "Problem reading output file");
-
-			if(dup2(fd_out, 1) < 0)
-				error(1, 0, "Problem using dup2 for output");
-			
-			if(close(fd_out) < 0)
-				error(1, 0, "Problem closing output file");
-		}
 		
 		// Execute the simple command program
 		execvp(c->u.word[0], c->u.word );
@@ -163,6 +177,9 @@ void execute_simple(command_t c)
 
 void execute_io_command(command_t c)
 {
+	// Setup input-output characteristics
+	setup_io(c);
+
 	if(c->type == SIMPLE_COMMAND)
 	{
 		execute_simple(c);
@@ -174,7 +191,7 @@ void execute_io_command(command_t c)
 		// error (1, 0, "subshell command execution not fully implemented");
 	}
 	else
-		error(1,0, "I have no idea why I'm here. What's happening?");
+		error(1,0, "Error with processing i/o command");
 }
 
 void
