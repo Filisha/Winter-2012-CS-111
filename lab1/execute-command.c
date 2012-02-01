@@ -12,6 +12,7 @@
 #include <errno.h>
 
 #include <fcntl.h>
+#include <sys/stat.h>
 
 
 int
@@ -127,7 +128,7 @@ void setup_io(command_t c)
 	// and if it doesn't exist yet, should be created
 	if(c->output != NULL)
 	{
-		int fd_out = open(c->output, O_CREAT | O_RDWR);
+		int fd_out = open(c->output, O_CREAT | O_RDWR, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
 		if( fd_out < 0)
 			error(1, 0, "Problem reading output file");
 		
@@ -152,16 +153,7 @@ void execute_simple(command_t c)
 	}
 	else if(pid == 0)
 	{
-		int k = 0;
-		for(k = 0; k < 1000; k++)
-		{
-			if(c->u.word[k] != NULL)
-				printf("%s ", c->u.word[k]);
-			else
-				break;
-		}
-		printf("\n");
-		
+		setup_io(c);
 		
 		// In a semicolon simple command, exit as fast as possible
 		if(c->u.word[0][0] == ':')
@@ -178,7 +170,6 @@ void execute_simple(command_t c)
 void execute_io_command(command_t c)
 {
 	// Setup input-output characteristics
-	setup_io(c);
 
 	if(c->type == SIMPLE_COMMAND)
 	{
@@ -186,6 +177,7 @@ void execute_io_command(command_t c)
 	}
 	else if(c->type == SUBSHELL_COMMAND)
 	{
+		setup_io(c);
 		// Execute contents of subshell
 		execute_generic(c->u.subshell_command);
 		// error (1, 0, "subshell command execution not fully implemented");
