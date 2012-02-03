@@ -251,15 +251,47 @@ execute_pipe (command_t c)
     error(1, 0, "Could not fork");
 }
 	 
-void
-execute_command (command_t c, int time_travel)
+command_t
+execute_execute_time_travel (command_stream_t s)
 {
-  /* FIXME: Replace this with your implementation.  You may need to
-     add auxiliary functions and otherwise modify the source code.
-     You can also use external functions defined in the GNU C Library.  */
-     
-  if(time_travel == 1)
-    error (1, 0, "timetravel command execution not yet implemented");
-  else
+  command_t last_command = NULL;
+  command_t command;
+  while ((command = read_command_stream (s)))
+  {
+    generate_dependicies(command);  //Stick a dependency tree in the command
+    
+    // For all on running and waiting list, walk through all even if there one is found
+      //If dependency is found
+          // Note that on the waiting list, that is, this command waits for the other
+    
+    //Is there anything on its wait for list?
+      //If there is, append this on to the waiting list with it's wait for list
+      //Otherwise place this on the running list
+        // Fork and execute
+        execute_command (command);
+    
+    last_command = command;
+  }
+  
+  // While there's someone on the waiting list
+  while()
+  {
+    // Wait for somone to finish, remove them
+    // Use pid and running list to determine who finished
+    // for all on the waiting list for people who are waiting for you
+      // If someone was, 
+        // they are no more!
+      // If they're not waiting on anyone
+        //fork and execute, put them on the running list with pid
+  }
+  // (everyone's on running or done)
+  // wait for everyone to finish
+  
+  return last_command;
+}
+
+void
+execute_command (command_t c)
+{
     execute_generic(c);
 }
