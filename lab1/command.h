@@ -70,9 +70,11 @@ void execute_io_command(command_t);
    gives the 2nd command's exit status */
 void execute_pipe(command_t);
 
-/* Execute a command.  Use "time travel" if the integer flag is
-   nonzero.  */
-void execute_command (command_t, int);
+/* Execute commands with time travel.  */
+command_t execute_execute_time_travel (command_stream_t);
+
+/* Execute a command.  No time travel involved */
+void execute_command (command_t);
 
 /* Return the exit status of a command, which must have previously been executed.
    Wait for the command, if it is not already finished.  */
