@@ -253,6 +253,7 @@ execute_pipe (command_t c)
     error(1, 0, "Could not fork");
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Time Travel Functions
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,10 +313,19 @@ void add_command_dependencies(tlc_node_t node, command_t cmd)
 	}
 }
 
-
+void add_to_tlc_list(depend_node_t depend_list, tlc_node_t addition)
+{
+  depend_node_t last_node = depend_list;
+  while(depend_list != NULL)
+  {
+    last_node = depend_list;
+    depend_list = depend_list->next;
+  }
+  last_node->next = addition;
+}
 
 command_t
-execute_execute_time_travel (command_stream_t s)
+execute_time_travel (command_stream_t s)
 {
   tlc_node_t graph_head = NULL;
 
@@ -324,13 +334,64 @@ execute_execute_time_travel (command_stream_t s)
   while ((command = read_command_stream (s)))
   {
     tlc_node_t new_node = checked_malloc(sizeof(struct tlc_node));
+    new_node->c = command;
+    new_node->inputs = NULL;
+    new_node->outputs = NULL;
+    new_node->dependencies = 0;
+    new_node->dependents = NULL;
+    new_node->pid = -1;
+    
     generate_dependencies(new_node, command);  //Stick a dependency list in the node
     
     // For all on the list, walk through all even if there one is found
+    tlc_node_t last_node = graph_node;
+    tlc_node_t curr_node = graph_node;
+    while(curr_node != NULL)
+    {
       //If dependency is found
-          // Note that on the waiting list, that is, this command is a dependent for another
+      
+      word_node_t curr_input;
+      word_node_t curr_output;
+      
+      curr_output = new_node-> outputs;
+      //Find WAR
+      while(curr_output != NULL)
+      {
+        curr_input = curr_node->inputs;
+        while(curr_input != NULL)
+        {
+          if(strcmp(curr_input->word, curr_output->word))
+          {
+              // Note that on the waiting list, that is, this command is a dependent for another
+              add_to_tlc_list( curr_node->dependents, new_node);
+              break;
+          }
+          
+          curr_input = curr_input->next;
+        }
+        
+        curr_output = curr_output->next;
+      }
+      
+      curr_input = new_node->inputs;
+      curr_output = curr_node-> outputs;
+      // Find RAW
+       while()
+      {
+        if()
+        {
+            // Note that on the waiting list, that is, this command is a dependent for another
+        }
+      }
+      
+      
+      last_node = curr_node;
+      curr_node = curr_node->next;
+    }
     
     // Add the node to the list of executing and waiting commands
+    
+    
     last_command = command;
   }
   
