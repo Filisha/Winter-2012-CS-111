@@ -117,38 +117,38 @@ void setup_io(command_t c)
 		int fd_in = open(c->input, O_RDWR);
 		if( fd_in < 0)
 			error(1, 0, "Unable to read input file: %s", c->input);
-		
+
 		if( dup2(fd_in, 0) < 0)
 			error(1, 0, "Problem using dup2 for input");
-		
+
 		if( close(fd_in) < 0)
 			error(1, 0, "Problem closing input file");
 	}
-	
+
 	// Check for an output characteristic, which can be read and written on,
 	// and if it doesn't exist yet, should be created
 	if(c->output != NULL)
 	{
-		// Be sure to set flags 
-		int fd_out = open(c->output, O_CREAT | O_WRONLY | O_TRUNC, 
+		// Be sure to set flags
+		int fd_out = open(c->output, O_CREAT | O_WRONLY | O_TRUNC,
 											S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
 		if( fd_out < 0)
 			error(1, 0, "Problem reading output file: %s", c->output);
-		
+
 		if( dup2(fd_out, 1) < 0)
 			error(1, 0, "Problem using dup2 for output");
-		
+
 		if( close(fd_out) < 0)
 			error(1, 0, "Problem closing output file");
-	}	
+	}
 }
 
 
 void execute_simple(command_t c)
 {
-  int status; 
+  int status;
 	pid_t pid = fork();
-	
+
 	if(pid > 0)
 	{
 		// Parent waits for child, then stores status
@@ -159,11 +159,11 @@ void execute_simple(command_t c)
 	{
 		// Set input-output characteristics
 		setup_io(c);
-		
+
 		// In a semicolon simple command, exit as fast as possible
 		if(c->u.word[0][0] == ':')
 			_exit(0);
-		
+
 		// Execute the simple command program
 		execvp(c->u.word[0], c->u.word );
 		error(1, 0, "Invalid simple command");
@@ -184,7 +184,7 @@ void execute_io_command(command_t c)
 	{
 		// Set input-output characteristics
 		setup_io(c);
-		
+
 		// Execute contents of subshell
 		execute_generic(c->u.subshell_command);
 	}
@@ -200,7 +200,7 @@ execute_pipe (command_t c)
   pid_t returned_pid;
   pid_t pid_1;
   pid_t pid_2;
-  
+
   if ( pipe(buf) == -1 )
       error (1, errno, "cannot create pipe");
   pid_1 = fork();
@@ -273,17 +273,17 @@ void add_word_dependencies(word_node_t word_list, char* word)
 	}
 }
 
-// Given a top level command node and a command, this function will add all of 
-// the dependencies of the command to the node, and then will also recursively 
+// Given a top level command node and a command, this function will add all of
+// the dependencies of the command to the node, and then will also recursively
 // add all of the dependencies of the command's subcommands to the node
 void add_command_dependencies(tlc_node_t node, command_t cmd)
 {
 	if(cmd->input != NULL)
 		add_word_dependencies(node->inputs, cmd->input);
-		
+
 	if(cmd->output != NULL)
 		add_word_dependencies(node->outputs, cmd->output);
-	
+
 	int k;
 	switch(cmd->type)
 	{
@@ -295,12 +295,12 @@ void add_command_dependencies(tlc_node_t node, command_t cmd)
 			add_command_dependencies(node, cmd->u.command[0]);
 			add_command_dependencies(node, cmd->u.command[1]);
 			break;
-			
+
 		// SUBSHELL has a single subcommand
 		case SUBSHELL_COMMAND:
 			add_command_dependencies(node, cmd->u.subshell_command);
 			break;
-			
+
 		// SIMPLE has no additional subcommands, but more input dependencies
 		case SIMPLE_COMMAND:
 			k = 1;
@@ -321,7 +321,33 @@ void add_to_tlc_list(depend_node_t depend_list, tlc_node_t addition)
     last_node = depend_list;
     depend_list = depend_list->next;
   }
-  last_node->next = addition;
+  depend_node_t new_node = checked_malloc(sizeof(struct depend_node));
+  new_node->dependent = addition;
+  new_node->next = NULL;
+
+  last_node->next = new_node;
+}
+
+void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_dependent, tlc_node_t earlier)
+{
+  curr_input = inputs;
+  curr_output = outputs;
+  // Find RAW
+  while(curr_output != NULL)
+  {
+    curr_input = inputs;
+    while(curr_input != NULL)
+    {
+      if(strcmp(curr_input->word, curr_output->word))
+      {
+          // Note that on the waiting list, that is, this command is a dependent for another
+          add_to_tlc_list( earlier->dependents, new_dependent);
+          return;
+      }
+      curr_input = curr_input->next;
+    }
+    curr_output = curr_output->next;
+  }
 }
 
 command_t
@@ -340,74 +366,37 @@ execute_time_travel (command_stream_t s)
     new_node->dependencies = 0;
     new_node->dependents = NULL;
     new_node->pid = -1;
-    
+
     generate_dependencies(new_node, command);  //Stick a dependency list in the node
-    
+
     // For all on the list, walk through all even if there one is found
     tlc_node_t last_node = graph_node;
     tlc_node_t curr_node = graph_node;
     while(curr_node != NULL)
     {
       //If dependency is found
-      
-      word_node_t curr_input;
-      word_node_t curr_output;
-      
-      curr_output = new_node-> outputs;
-      //Find WAR
-      while(curr_output != NULL)
-      {
-        curr_input = curr_node->inputs;
-        while(curr_input != NULL)
-        {
-          if(strcmp(curr_input->word, curr_output->word))
-          {
-              // Note that on the waiting list, that is, this command is a dependent for another
-              add_to_tlc_list( curr_node->dependents, new_node);
-              break;
-          }
-          
-          curr_input = curr_input->next;
-        }
-        
-        curr_output = curr_output->next;
-      }
-      
-      curr_input = new_node->inputs;
-      curr_output = curr_node-> outputs;
-      // Find RAW
-       while()
-      {
-        if()
-        {
-            // Note that on the waiting list, that is, this command is a dependent for another
-        }
-      }
-      
-      
-      last_node = curr_node;
-      curr_node = curr_node->next;
-    }
-    
+      word_list_compare(new_node->outputs, curr_node->inputs, new_node, curr_node);
+      word_list_compare(curr_node->outputs, new_node->inputs, new_node, curr_node);
+
     // Add the node to the list of executing and waiting commands
-    
-    
+    last_node->next = new_node;
+
     last_command = command;
   }
-  
+
   // While there's someone on the waiting list
   while(graph_head != NULL)
   {
     // For everyone on the list
       // If they're not waiting on anyone
         //fork and execute, indicate its pid
-        
+
     // Wait for somone to finish
     // Use pid to determine who finished and remove them
     // for all on the list of dependents
       // free that depenenct (reduce dependencies)
   }
-  
+
   return last_command;
 }
 
