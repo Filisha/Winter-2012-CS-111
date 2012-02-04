@@ -9,6 +9,7 @@
 #include <unistd.h>  /* _exit, fork */
 #include <stdlib.h>  /* exit */
 #include <stdio.h>
+#include <string.h>
 #include <error.h>
 #include <errno.h>
 
@@ -332,11 +333,11 @@ void add_to_tlc_list(depend_node_t depend_list, tlc_node_t addition)
 
 void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_dependent, tlc_node_t earlier)
 {
-  curr_output = outputs;
+  word_node_t curr_output = outputs;
   
   while(curr_output != NULL)
   {
-    curr_input = inputs;
+    word_node_t curr_input = inputs;
     while(curr_input != NULL)
     {
       if(strcmp(curr_input->word, curr_output->word))
@@ -421,6 +422,7 @@ execute_time_travel (command_stream_t s)
       curr_node = curr_node->next;
     }
     
+    int status;
     // Wait for somone to finish
     pid_t finished_pid = waitpid(-1, &status, 0);
     
