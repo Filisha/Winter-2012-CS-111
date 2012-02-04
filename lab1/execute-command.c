@@ -269,7 +269,9 @@ void add_word_dependencies(word_node_t word_list, char* word)
 	}
 	else
 	{
-		add_word_dependencies(word_list->next, word);
+		// Avoid duplicates
+		if(word_list->word != word)
+			add_word_dependencies(word_list->next, word);
 	}
 }
 
