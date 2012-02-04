@@ -259,6 +259,14 @@ execute_pipe (command_t c)
 // Time Travel Functions
 ////////////////////////////////////////////////////////////////////////////////
 
+word_node_t start_word_list(char* word)
+{
+	word_node_t head = checked_malloc(sizeof(word_node_t));
+	head->word = word;
+	head->next = NULL;
+	return head;
+}
+
 // Given a word node and a char*, this will add the word node to the linked list
 void add_word_dependencies(word_node_t word_list, char* word)
 {
@@ -281,11 +289,21 @@ void add_word_dependencies(word_node_t word_list, char* word)
 // add all of the dependencies of the command's subcommands to the node
 void add_command_dependencies(tlc_node_t node, command_t cmd)
 {
-	if(cmd->input != NULL)
-		add_word_dependencies(node->inputs, cmd->input);
+	if(cmd->input != 0)
+	{
+		if(node->inputs == NULL)
+			node->inputs = start_word_list(cmd->input);
+		else
+			add_word_dependencies(node->inputs, cmd->input);
+	}
 
-	if(cmd->output != NULL)
-		add_word_dependencies(node->outputs, cmd->output);
+	if(cmd->output != 0)
+	{
+		if(node->outputs == NULL)
+			node->outputs = start_word_list(cmd->output);
+		else
+			add_word_dependencies(node->outputs, cmd->output);
+	}
 
 	int k;
 	switch(cmd->type)
@@ -309,15 +327,20 @@ void add_command_dependencies(tlc_node_t node, command_t cmd)
 			k = 1;
 			while(cmd->u.word[k] != NULL)
 			{
-				add_word_dependencies(node->inputs, cmd->u.word[k]);
+				if(node->inputs == NULL)
+					node->inputs = start_word_list(cmd->u.word[k]);
+				else
+					add_word_dependencies(node->inputs, cmd->u.word[k]);
+				
 				k++;
 			}
 			break;
 	}
 }
 
-void add_to_tlc_list(depend_node_t depend_list, tlc_node_t addition)
+void add_to_tlc_list(tlc_node_t depend, tlc_node_t addition)
 {
+	depend_node_t depend_list = depend->dependents;
   depend_node_t last_node = depend_list;
   while(depend_list != NULL)
   {
@@ -327,8 +350,10 @@ void add_to_tlc_list(depend_node_t depend_list, tlc_node_t addition)
   depend_node_t new_node = checked_malloc(sizeof(struct depend_node));
   new_node->dependent = addition;
   new_node->next = NULL;
-
-  last_node->next = new_node;
+	if(last_node == NULL)
+		depend->dependents = new_node;
+	else
+		last_node->next = new_node;
 }
 
 void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_dependent, tlc_node_t earlier)
@@ -344,7 +369,7 @@ void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_d
       {
           // Note that on the waiting list, that is, this command is a dependent for another
           new_dependent->dependencies += 1;
-          add_to_tlc_list( earlier->dependents, new_dependent);
+          add_to_tlc_list( earlier, new_dependent);
           return;
       }
       curr_input = curr_input->next;
@@ -370,8 +395,8 @@ execute_time_travel (command_stream_t s)
     new_node->dependents = NULL;
     new_node->pid = -1;
 
-    generate_dependencies(new_node, command);  //Stick a dependency list in the node
-
+    add_command_dependencies(new_node, command);  //Stick a dependency list in the node
+		
     // For all on the list, walk through all even if there one is found
     tlc_node_t last_node = graph_head;
     tlc_node_t curr_node = graph_head;
