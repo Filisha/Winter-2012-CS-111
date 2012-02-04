@@ -2,6 +2,7 @@
 
 #include "command.h"
 #include "command-internals.h"
+#include "alloc.h"
 
 #include <sys/types.h>  /* pid_t */
 #include <sys/wait.h> /* waitpid */
@@ -254,11 +255,14 @@ execute_pipe (command_t c)
 command_t
 execute_execute_time_travel (command_stream_t s)
 {
+  tlc_node_t graph_head = NULL;
+
   command_t last_command = NULL;
   command_t command;
   while ((command = read_command_stream (s)))
   {
-    generate_dependicies(command);  //Stick a dependency tree in the command
+    tlc_node_t new_node = checked_malloc(sizeof(struct tlc_node));
+    generate_dependencies(new_node, command);  //Stick a dependency tree in the command
     
     // For all on running and waiting list, walk through all even if there one is found
       //If dependency is found
@@ -274,7 +278,7 @@ execute_execute_time_travel (command_stream_t s)
   }
   
   // While there's someone on the waiting list
-  while()
+  while(graph_head != NULL)
   {
     // Wait for somone to finish, remove them
     // Use pid and running list to determine who finished

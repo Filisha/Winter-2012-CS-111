@@ -74,6 +74,10 @@ void execute_io_command(command_t);
    gives the 2nd command's exit status */
 void execute_pipe(command_t);
 
+/* Fills in the tlc node with all input output dependencies that occur
+   inside of the command */
+void generate_dependencies(tlc_node_t, command_t);
+
 /* Execute commands with time travel.  */
 command_t execute_execute_time_travel (command_stream_t);
 
