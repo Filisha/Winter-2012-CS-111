@@ -69,3 +69,31 @@ struct command_stream
   // Every realloc, this must be updated
   int max_token_length;
 };
+
+struct word_node
+{
+  char* word;
+  struct word_node* next;
+};
+
+// Has a pointer to dependent
+struct depend_node
+{
+  struct tlc_node* dependent;
+  
+  struct depend_node* next;
+
+}
+
+//Nodes describing top level commands and their dependencies
+struct tlc_node
+{
+  struct word_node* inputs;
+  struct word_node* outputs;
+  int dependencies;
+  struct depend_node* dependents;
+  
+  int pid;
+  
+  struct tlc_node* next;
+};

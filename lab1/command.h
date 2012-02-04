@@ -2,6 +2,10 @@
 
 typedef struct command *command_t;
 typedef struct command_stream *command_stream_t;
+typedef struct word_node* word_node_t;
+typedef struct depend_node* depend_node_t;
+typedef struct tlc_node* tlc_node_t;
+
 
 //Retrieve the next valid character
 int get_next_char(command_stream_t cmd_stream);
@@ -69,6 +73,10 @@ void execute_io_command(command_t);
    the second command's input.  Returns when the 2nd command finishes and
    gives the 2nd command's exit status */
 void execute_pipe(command_t);
+
+/* Fills in the tlc node with all input output dependencies that occur
+   inside of the command */
+void generate_dependencies(tlc_node_t, command_t);
 
 /* Execute commands with time travel.  */
 command_t execute_execute_time_travel (command_stream_t);
