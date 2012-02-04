@@ -83,7 +83,7 @@ struct depend_node
   
   struct depend_node* next;
 
-}
+};
 
 //Nodes describing top level commands and their dependencies
 struct tlc_node
