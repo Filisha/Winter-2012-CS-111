@@ -252,7 +252,68 @@ execute_pipe (command_t c)
   else
     error(1, 0, "Could not fork");
 }
-	 
+
+////////////////////////////////////////////////////////////////////////////////
+// Time Travel Functions
+////////////////////////////////////////////////////////////////////////////////
+
+// Given a word node and a char*, this will add the word node to the linked list
+void add_word_dependencies(word_node_t word_list, char* word)
+{
+	if(word_list == NULL)
+	{
+		word_list = checked_malloc(sizeof(word_node_t));
+		word_list->word = word;
+		word_list->next = NULL;
+	}
+	else
+	{
+		add_word_dependencies(word_list->next, word);
+	}
+}
+
+// Given a top level command node and a command, this function will add all of 
+// the dependencies of the command to the node, and then will also recursively 
+// add all of the dependencies of the command's subcommands to the node
+void add_command_dependencies(tlc_node_t node, command_t cmd)
+{
+	if(cmd->input != NULL)
+		add_word_dependencies(node->inputs, cmd->input);
+		
+	if(cmd->output != NULL)
+		add_word_dependencies(node->outputs, cmd->output);
+	
+	int k;
+	switch(cmd->type)
+	{
+		// AND, OR, SEQUENCE, and PIPE all have two subcommands
+		case AND_COMMAND:
+		case OR_COMMAND:
+		case SEQUENCE_COMMAND:
+		case PIPE_COMMAND:
+			add_command_dependencies(node, cmd->u.command[0]);
+			add_command_dependencies(node, cmd->u.command[1]);
+			break;
+			
+		// SUBSHELL has a single subcommand
+		case SUBSHELL_COMMAND:
+			add_command_dependencies(node, cmd->u.subshell_command);
+			break;
+			
+		// SIMPLE has no additional subcommands, but more input dependencies
+		case SIMPLE_COMMAND:
+			k = 1;
+			while(cmd->u.word[k] != NULL)
+			{
+				add_word_dependencies(node->inputs, cmd->u.word[k]);
+				k++;
+			}
+			break;
+	}
+}
+
+
+
 command_t
 execute_execute_time_travel (command_stream_t s)
 {
