@@ -270,7 +270,7 @@ void add_word_dependencies(word_node_t word_list, char* word)
 	else
 	{
 		// Avoid duplicates
-		if(word_list->word != word)
+		if(strcmp(word_list->word, word) != 0)
 			add_word_dependencies(word_list->next, word);
 	}
 }
