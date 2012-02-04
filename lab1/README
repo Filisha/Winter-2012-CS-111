@@ -1,6 +1,31 @@
 Group, Discussion, and ID Numbers
  - Cameron Solomon	1B 603 809 897
- - Ervin Sukardi	1A	203 808 277
+ - Ervin Sukardi	1A 203 808 277
+
+////////////////////////////////////////////////////////////////////////////////
+// Lab 1, Part C
+////////////////////////////////////////////////////////////////////////////////
+
+No known limitations outside of those imposed by the specification and the
+relaxations allowed by the TAs on Piazza.
+
+More specifically, our program is limited only by the relaxations which still
+give us full credit:
+
+ 1.  Our program reads the entire script file, generates a dependency graph,
+     and then begins execution, without breaking the behavior for lab 1a
+
+ 2.  While there may be cases where correct performance may occur anyways, we 
+     assumed that any particular file is only ever written to once.
+
+ 3.  Our program only builds dependencies based on top level commands; 
+     therefore, dependencies are only created between entire top level commands,
+     without accounting for smaller dependencies between subcommands in a
+     top level command.
+
+ 4.  Our program only builds dependencies based on top level commands; 
+     therefore, within a particular top level command, all of the subcommands
+     are executed sequentially
 
 ////////////////////////////////////////////////////////////////////////////////
 // Lab 1, Part B
