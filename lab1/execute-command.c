@@ -263,34 +263,28 @@ execute_execute_time_travel (command_stream_t s)
   while ((command = read_command_stream (s)))
   {
     tlc_node_t new_node = checked_malloc(sizeof(struct tlc_node));
-    generate_dependencies(new_node, command);  //Stick a dependency tree in the command
+    generate_dependencies(new_node, command);  //Stick a dependency list in the node
     
-    // For all on running and waiting list, walk through all even if there one is found
+    // For all on the list, walk through all even if there one is found
       //If dependency is found
-          // Note that on the waiting list, that is, this command waits for the other
+          // Note that on the waiting list, that is, this command is a dependent for another
     
-    //Is there anything on its wait for list?
-      //If there is, append this on to the waiting list with it's wait for list
-      //Otherwise place this on the running list
-        // Fork and execute
-        execute_command (command);
-    
+    // Add the node to the list of executing and waiting commands
     last_command = command;
   }
   
   // While there's someone on the waiting list
   while(graph_head != NULL)
   {
-    // Wait for somone to finish, remove them
-    // Use pid and running list to determine who finished
-    // for all on the waiting list for people who are waiting for you
-      // If someone was, 
-        // they are no more!
+    // For everyone on the list
       // If they're not waiting on anyone
-        //fork and execute, put them on the running list with pid
+        //fork and execute, indicate its pid
+        
+    // Wait for somone to finish
+    // Use pid to determine who finished and remove them
+    // for all on the list of dependents
+      // free that depenenct (reduce dependencies)
   }
-  // (everyone's on running or done)
-  // wait for everyone to finish
   
   return last_command;
 }
