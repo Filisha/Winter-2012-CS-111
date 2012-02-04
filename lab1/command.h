@@ -79,7 +79,7 @@ void execute_pipe(command_t);
 void generate_dependencies(tlc_node_t, command_t);
 
 /* Execute commands with time travel.  */
-command_t execute_execute_time_travel (command_stream_t);
+command_t execute_time_travel (command_stream_t);
 
 /* Execute a command.  No time travel involved */
 void execute_command (command_t);

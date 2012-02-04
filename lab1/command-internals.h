@@ -88,6 +88,8 @@ struct depend_node
 //Nodes describing top level commands and their dependencies
 struct tlc_node
 {
+  struct command* c;
+
   struct word_node* inputs;
   struct word_node* outputs;
   int dependencies;
