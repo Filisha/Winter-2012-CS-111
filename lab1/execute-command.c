@@ -376,6 +376,10 @@ execute_time_travel (command_stream_t s)
       //If dependency is found
       word_list_compare(new_node->outputs, curr_node->inputs, new_node, curr_node);
       word_list_compare(curr_node->outputs, new_node->inputs, new_node, curr_node);
+      
+      last_node = curr_node;
+      curr_node = curr_node->next;
+    }
 
     // Add the node to the list of executing and waiting commands
     last_node->next = new_node;
@@ -386,10 +390,17 @@ execute_time_travel (command_stream_t s)
   // While there's someone on the waiting list
   while(graph_head != NULL)
   {
+    tlc_node_t curr_node = graph_node;
     // For everyone on the list
+    while(curr_node != NULL)
+    {
       // If they're not waiting on anyone
+      
         //fork and execute, indicate its pid
-
+        
+      curr_node = curr_node->next;
+    }
+    
     // Wait for somone to finish
     // Use pid to determine who finished and remove them
     // for all on the list of dependents
