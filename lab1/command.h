@@ -2,6 +2,10 @@
 
 typedef struct command *command_t;
 typedef struct command_stream *command_stream_t;
+typedef struct word_node* word_node_t;
+typedef struct depend_node* depend_node_t;
+typedef struct tlc_node* tlc_node_t;
+
 
 //Retrieve the next valid character
 int get_next_char(command_stream_t cmd_stream);
