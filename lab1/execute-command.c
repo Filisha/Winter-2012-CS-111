@@ -270,18 +270,16 @@ word_node_t start_word_list(char* word)
 // Given a word node and a char*, this will add the word node to the linked list
 void add_word_dependencies(word_node_t word_list, char* word)
 {
-	if(word_list == NULL)
+	if(strcmp(word_list->word, word) == 0)
+		return;
+	else if(word_list->next == NULL)
 	{
-		word_list = checked_malloc(sizeof(word_node_t));
-		word_list->word = word;
-		word_list->next = NULL;
+		word_list->next = checked_malloc(sizeof(word_node_t));
+		word_list->next->word = word;
+		word_list->next->next = NULL;
 	}
 	else
-	{
-		// Avoid duplicates
-		if(strcmp(word_list->word, word) != 0)
-			add_word_dependencies(word_list->next, word);
-	}
+		add_word_dependencies(word_list->next, word);
 }
 
 // Given a top level command node and a command, this function will add all of
@@ -365,7 +363,7 @@ void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_d
     word_node_t curr_input = inputs;
     while(curr_input != NULL)
     {
-      if(strcmp(curr_input->word, curr_output->word))
+      if(strcmp(curr_input->word, curr_output->word) == 0)
       {
           // Note that on the waiting list, that is, this command is a dependent for another
           new_dependent->dependencies += 1;
@@ -479,7 +477,7 @@ execute_time_travel (command_stream_t s)
       }
       
       prev_node = finished_node;
-      finished_node = curr_node->next;
+      finished_node = finished_node->next;
     }
     
   }
