@@ -427,7 +427,7 @@ execute_time_travel (command_stream_t s)
     while(curr_node != NULL)
     {
       // If they're not waiting on anyone
-      if(curr_node->dependencies == 0)
+      if(curr_node->dependencies == 0 && curr_node->pid < 1)
       {
         //fork and execute, indicate its pid
         int pid = fork();
