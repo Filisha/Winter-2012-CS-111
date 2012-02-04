@@ -330,9 +330,8 @@ void add_to_tlc_list(depend_node_t depend_list, tlc_node_t addition)
 
 void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_dependent, tlc_node_t earlier)
 {
-  curr_input = inputs;
   curr_output = outputs;
-  // Find RAW
+  
   while(curr_output != NULL)
   {
     curr_input = inputs;
