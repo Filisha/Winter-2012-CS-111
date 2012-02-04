@@ -340,6 +340,7 @@ void word_list_compare(word_node_t outputs, word_node_t inputs, tlc_node_t new_d
       if(strcmp(curr_input->word, curr_output->word))
       {
           // Note that on the waiting list, that is, this command is a dependent for another
+          new_dependent->dependencies += 1;
           add_to_tlc_list( earlier->dependents, new_dependent);
           return;
       }
@@ -369,8 +370,8 @@ execute_time_travel (command_stream_t s)
     generate_dependencies(new_node, command);  //Stick a dependency list in the node
 
     // For all on the list, walk through all even if there one is found
-    tlc_node_t last_node = graph_node;
-    tlc_node_t curr_node = graph_node;
+    tlc_node_t last_node = graph_head;
+    tlc_node_t curr_node = graph_head;
     while(curr_node != NULL)
     {
       //If dependency is found
@@ -382,7 +383,10 @@ execute_time_travel (command_stream_t s)
     }
 
     // Add the node to the list of executing and waiting commands
-    last_node->next = new_node;
+    if( last_node == NULL)
+      graph_head = new_node;
+    else
+      last_node->next = new_node;
 
     last_command = command;
   }
@@ -390,21 +394,65 @@ execute_time_travel (command_stream_t s)
   // While there's someone on the waiting list
   while(graph_head != NULL)
   {
-    tlc_node_t curr_node = graph_node;
+    tlc_node_t curr_node = graph_head;
     // For everyone on the list
     while(curr_node != NULL)
     {
       // If they're not waiting on anyone
-      
+      if(curr_node->dependencies == 0)
+      {
         //fork and execute, indicate its pid
+        int pid = fork();
+        if(pid == -1)
+						error(1, 0, "Could not fork");
+				else if( pid == 0)
+        {
+						execute_command(curr_node->c);
+						_exit(curr_node->c->status);
+        }
+				else if( pid > 0)
+        {
+						curr_node->pid = pid;
+        }
+      }
         
       curr_node = curr_node->next;
     }
     
     // Wait for somone to finish
+    pid_t finished_pid = waitpid(-1, &status, 0);
+    
     // Use pid to determine who finished and remove them
-    // for all on the list of dependents
-      // free that depenenct (reduce dependencies)
+    tlc_node_t prev_node = NULL;
+    tlc_node_t finished_node = graph_head;
+    while(finished_node != NULL)
+    {
+      // If they're not waiting on anyone
+      if(finished_node->pid == finished_pid)
+      {
+        depend_node_t curr_depend = finished_node->dependents;
+        // for all on the list of dependents
+        while(curr_depend != NULL)
+        {
+          tlc_node_t freed_node = curr_depend->dependent;
+          // free that dependent (reduce dependencies)
+          freed_node->dependencies -= 1;
+          
+          curr_depend = curr_depend->next;
+        }
+          
+        // remove from the list
+        if(prev_node == NULL)
+          graph_head = finished_node->next;
+        else
+          prev_node->next = finished_node->next;
+        break;
+      }
+      
+      prev_node = finished_node;
+      finished_node = curr_node->next;
+    }
+    
   }
 
   return last_command;
