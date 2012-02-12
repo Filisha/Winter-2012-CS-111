@@ -65,10 +65,15 @@ typedef struct osprd_info {
   int read_locks;                 // Number of read locks
   
   int write_lock;               // The device is locked for write or not
-
+	
 	/* HINT: You may want to add additional fields to help
 	         in detecting deadlock. */
 
+	pid_t write_lock_pid;
+		// If a process has the write lock, this contains the process ID of 
+		// that process so that it cannot request a read lock; otherwise, it's -1
+	
+	
 	// The following elements are used internally; you don't need
 	// to understand them.
 	struct request_queue *queue;    // The device request queue.
@@ -198,6 +203,7 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
       {
         osp_spin_lock(&d->mutex);
         d->write_lock = 0;
+				d->write_lock_pid = -1;
         osp_spin_unlock(&d->mutex);
       }
       else
@@ -241,17 +247,24 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 	if (cmd == OSPRDIOCACQUIRE) {
 
 		// EXERCISE: Lock the ramdisk.
-		//
 		
     if(d == NULL)
       return -1;
     
     osp_spin_lock(&d->mutex);
     
+		// If we have the write lock and are trying to get the write lock
+		// again, we would have a deadlock
+		if(current->pid == d->write_lock_pid && filp_writable)
+		{
+			osp_spin_unlock(&d->mutex);
+			return -EDEADLK;
+		}
+		
     // Place itself in the ticket line for processing
     unsigned local_ticket = d->ticket_head;
     d->ticket_head++;
-    
+		
     // If *filp is open for writing (filp_writable), then attempt
 		// to write-lock the ramdisk; 
     if(filp_writable)
@@ -260,7 +273,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         //DEFINE_WAIT(wait);
        // wait.func = &default_wake_function;
       //  Busy wait (TODO: BLOCK instead) forconditions
-      while( d->write_lock != 0 || d->read_locks != 0 || local_ticket != d->ticket_tail )
+      while( d->write_lock != 0 || d->read_locks != 0 || 
+						 local_ticket != d->ticket_tail )
       {
         //prepare_to_wait(d->blockq, wait, TASK_INTERRUPTIBLE);
         osp_spin_unlock(&d->mutex);
@@ -270,9 +284,10 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         osp_spin_lock(&d->mutex);
       }
       
-      //finish_wait(wait_queue_head_t *q, wait_queue_t *wait);
-      filp->f_flags |= F_OSPRD_LOCKED;
-      d->write_lock = 1;
+			//finish_wait(wait_queue_head_t *q, wait_queue_t *wait);
+			filp->f_flags |= F_OSPRD_LOCKED;
+			d->write_lock = 1;
+			d->write_lock_pid = current->pid;
     }
     // Otherwise attempt to read-lock the ramdisk.
     else
@@ -285,10 +300,20 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         osp_spin_lock(&d->mutex);
       }
       
-      filp->f_flags |= F_OSPRD_LOCKED;
-      d->read_locks++;
+			// If we have the write lock, and are trying to obtain a read lock,
+			// we will deadlock. Don't allow this.
+			if(current->pid == d->write_lock_pid)
+			{
+				osp_spin_unlock(&d->mutex);
+				return -EDEADLK;
+			}
+			
+			else
+			{
+					filp->f_flags |= F_OSPRD_LOCKED;
+					d->read_locks++;
+			}
     }
-    
     
     d->ticket_tail++;
     osp_spin_unlock(&d->mutex);
@@ -339,15 +364,26 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
     if(filp_writable)
     {
       osp_spin_lock(&d->mutex);
-      if( d->write_lock != 0 || d->read_locks != 0 || d->ticket_head != d->ticket_tail )
+      if( d->write_lock != 0 || d->read_locks != 0 || 
+				  d->ticket_head != d->ticket_tail )
       {
         r = -EBUSY;
       }
-      // TODO: Check for deadlock
+
       else
       {
-        filp->f_flags |= F_OSPRD_LOCKED;
-        d->write_lock = 1;
+	      // Check for a deadlock
+				if(d->write_lock_pid == current->pid)
+				{
+					osp_spin_unlock(&d->mutex);
+					return -EDEADLK;
+				}
+				else
+				{
+					filp->f_flags |= F_OSPRD_LOCKED;
+					d->write_lock = 1;
+					d->write_lock_pid = current->pid;
+				}
       }
       osp_spin_unlock(&d->mutex);
     }
@@ -360,8 +396,14 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       {
         r = -EBUSY;
       }
-      // TODO: Check for deadlock
-      
+
+      // Check for deadlock; do not give read lock if process has write lock
+			else if(d->write_lock_pid == current->pid)
+			{
+				osp_spin_unlock(&d->mutex);
+				return -EDEADLK;
+			}
+
       else 
       {
         filp->f_flags |= F_OSPRD_LOCKED;
@@ -393,6 +435,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       {
         osp_spin_lock(&d->mutex);
         d->write_lock = 0;
+				d->write_lock_pid = -1;
         osp_spin_unlock(&d->mutex);
       }
       else
@@ -404,7 +447,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       filp->f_flags &= !F_OSPRD_LOCKED;
     }
     
-	} else
+	} 
+	else
 		r = -ENOTTY; /* unknown command */
 	return r;
 }
@@ -420,6 +464,7 @@ static void osprd_setup(osprd_info_t *d)
 	d->ticket_head = d->ticket_tail = 0;
   d->read_locks = 0;
   d->write_lock = 0;
+	d->write_lock_pid = -1;
 	/* Add code here if you add fields to osprd_info_t. */
 }
 
