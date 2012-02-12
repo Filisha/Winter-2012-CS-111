@@ -198,12 +198,14 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
       {
         osp_spin_lock(&d->mutex);
         d->write_lock = 0;
+        wake_up_all(&d->blockq);
         osp_spin_unlock(&d->mutex);
       }
       else
       {
         osp_spin_lock(&d->mutex);
         d->read_locks--;
+        wake_up_all(&d->blockq);
         osp_spin_unlock(&d->mutex);
       }
     }
@@ -256,31 +258,30 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// to write-lock the ramdisk; 
     if(filp_writable)
     {
-      
-        //DEFINE_WAIT(wait);
-       // wait.func = &default_wake_function;
-      //  Busy wait (TODO: BLOCK instead) forconditions
+      // Block while conditions aren't met
       while( d->write_lock != 0 || d->read_locks != 0 || local_ticket != d->ticket_tail )
       {
-        //prepare_to_wait(d->blockq, wait, TASK_INTERRUPTIBLE);
+        int wait_result = wait_event_interruptible(d->blockq, 1);
         osp_spin_unlock(&d->mutex);
-        schedule();
-        if( signal_pending(current))
+        if(wait_result == -ERESTARTSYS)
           return -ERESTARTSYS;
+        schedule();
         osp_spin_lock(&d->mutex);
       }
       
-      //finish_wait(wait_queue_head_t *q, wait_queue_t *wait);
       filp->f_flags |= F_OSPRD_LOCKED;
       d->write_lock = 1;
     }
     // Otherwise attempt to read-lock the ramdisk.
     else
     {
-      //  Busy wait (TODO: BLOCK instead) forconditions
+      // Block while conditions aren't met
       while( d->write_lock != 0 || local_ticket != d->ticket_tail )
       {
+        int wait_result = wait_event_interruptible(d->blockq, 1);
         osp_spin_unlock(&d->mutex);
+        if(wait_result == -ERESTARTSYS)
+          return -ERESTARTSYS;
         schedule();
         osp_spin_lock(&d->mutex);
       }
@@ -331,8 +332,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// block.  If OSPRDIOCACQUIRE would block or return deadlock,
 		// OSPRDIOCTRYACQUIRE should return -EBUSY.
 		// Otherwise, if we can grant the lock request, return 0.
-
-		eprintk("Attempting to try acquire\n");
     
     // If *filp is open for writing (filp_writable), then attempt
 		// to write-lock the ramdisk; 
@@ -343,7 +342,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       {
         r = -EBUSY;
       }
-      // TODO: Check for deadlock
       else
       {
         filp->f_flags |= F_OSPRD_LOCKED;
@@ -360,7 +358,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       {
         r = -EBUSY;
       }
-      // TODO: Check for deadlock
       
       else 
       {
@@ -370,19 +367,14 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       osp_spin_unlock(&d->mutex);
     }
 
+     
+		// Unlock the ramdisk.
 	} else if (cmd == OSPRDIOCRELEASE) {
 
     if(d == NULL)
       return -1;
-     
-		// EXERCISE: Unlock the ramdisk.
-		//
-		// If the file hasn't locked the ramdisk, return -EINVAL.
-		// Otherwise, clear the lock from filp->f_flags, wake up
-		// the wait queue, perform any additional accounting steps
-		// you need, and return 0.
     
-     
+		// If the file hasn't locked the ramdisk, return -EINVAL.
     if((filp->f_flags & F_OSPRD_LOCKED) == 0)
     {
       r = -EINVAL;
@@ -392,15 +384,20 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       if(filp_writable)
       {
         osp_spin_lock(&d->mutex);
+        // Clear the write lock and wake up others
         d->write_lock = 0;
+        wake_up_all(&d->blockq);
         osp_spin_unlock(&d->mutex);
       }
       else
       {
         osp_spin_lock(&d->mutex);
+        // Clear the read lock and wake up others
         d->read_locks--;
+        wake_up_all(&d->blockq);
         osp_spin_unlock(&d->mutex);
       }
+      // Clear the lock from filp->f_flags
       filp->f_flags &= !F_OSPRD_LOCKED;
     }
     
