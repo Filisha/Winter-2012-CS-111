@@ -47,20 +47,20 @@ module_param(nsectors, int, 0);
 
 /* The internal representation of our device. */
 typedef struct osprd_info {
-	uint8_t *data;                  // The data array. Its size is
-	                                // (nsectors * SECTOR_SIZE) bytes.
+	uint8_t *data;          // The data array. Its size is
+	                        // (nsectors * SECTOR_SIZE) bytes.
 
-	osp_spinlock_t mutex;           // Mutex for synchronizing access to
-					// this block device
+	osp_spinlock_t mutex;   // Mutex for synchronizing access to
+													// this block device
 
 	unsigned ticket_head;		// Currently running ticket for
-					// the device lock
+													// the device lock
 
 	unsigned ticket_tail;		// Next available ticket for
-					// the device lock
+													// the device lock
 
 	wait_queue_head_t blockq;       // Wait queue for tasks blocked on
-					// the device lock
+																	// the device lock
 
 	/* HINT: You may want to add additional fields to help
 	         in detecting deadlock. */
@@ -68,9 +68,9 @@ typedef struct osprd_info {
 	// The following elements are used internally; you don't need
 	// to understand them.
 	struct request_queue *queue;    // The device request queue.
-	spinlock_t qlock;		// Used internally for mutual
-	                                //   exclusion in the 'queue'.
-	struct gendisk *gd;             // The generic disk.
+	spinlock_t qlock;				// Used internally for mutual
+													// exclusion in the 'queue'.
+	struct gendisk *gd;     // The generic disk.
 } osprd_info_t;
 
 #define NOSPRD 4
@@ -107,6 +107,12 @@ static void for_each_open_file(struct task_struct *task,
  */
 static void osprd_process_request(osprd_info_t *d, struct request *req)
 {
+	// Declare variables at the beginning
+	// Calculate where to starta and the amount of data needed to copy
+	int data_size = req->current_nr_sectors * SECTOR_SIZE;
+	int data_offset = req->sector * SECTOR_SIZE;
+
+	// Check for a bad request
 	if (!blk_fs_request(req)) {
 		end_request(req, 0);
 		return;
@@ -120,9 +126,36 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// Consider the 'req->sector', 'req->current_nr_sectors', and
 	// 'req->buffer' members, and the rq_data_dir() function.
 
-	// Your code here.
-	eprintk("Should process request...\n");
-
+	// Your code here:
+	
+	// Check to see if we are trying to write to nonexistant sectors
+	if(req->sector + req->current_nr_sectors > nsectors)
+	{
+		eprintk("Trying to write to nonexistant sectors\n");
+		end_request(req, 0);
+	}
+	
+	// Read from the RAMDISK
+	// Copy the data in the requested sectors into the buffer
+	if(rq_data_dir(req) == READ)
+	{
+		memcpy(req->buffer, d->data + data_offset, data_size);
+	}
+	
+	// Write to the RAMDISK
+	// Copy the data in the buffer into the requested sectors
+	else if(rq_data_dir(req) == WRITE)
+	{
+		memcpy(d->data + data_offset, req->buffer, data_size);
+	}
+	
+	// Trying to perform an invalid action
+	else
+	{
+		eprintk("Neither a read nor a write\n");
+		end_request(req,0);
+	}
+	
 	end_request(req, 1);
 }
 
