@@ -188,20 +188,25 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// a lock, release the lock.  Also wake up blocked processes
 		// as appropriate.
 
-		if(filp_writable)
+    if((filp->f_flags & F_OSPRD_LOCKED) == 0)
     {
-      osp_spin_lock(&d->mutex);
-      d->write_lock = 0;
-      printk(KERN_EMERG "Finished \n");
-      osp_spin_unlock(&d->mutex);
+      return 0;
     }
     else
     {
-      osp_spin_lock(&d->mutex);
-      d->read_locks--;
-      osp_spin_unlock(&d->mutex);
+      if(filp_writable != 0)
+      {
+        osp_spin_lock(&d->mutex);
+        d->write_lock = 0;
+        osp_spin_unlock(&d->mutex);
+      }
+      else
+      {
+        osp_spin_lock(&d->mutex);
+        d->read_locks--;
+        osp_spin_unlock(&d->mutex);
+      }
     }
-
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
 
@@ -257,10 +262,11 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       //  Busy wait (TODO: BLOCK instead) forconditions
       while( d->write_lock != 0 || d->read_locks != 0 || local_ticket != d->ticket_tail )
       {
-        printk(KERN_EMERG "Write waiting for lock\n");
         //prepare_to_wait(d->blockq, wait, TASK_INTERRUPTIBLE);
         osp_spin_unlock(&d->mutex);
         schedule();
+        if( signal_pending(current))
+          return -ERESTARTSYS;
         osp_spin_lock(&d->mutex);
       }
       
@@ -274,7 +280,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       //  Busy wait (TODO: BLOCK instead) forconditions
       while( d->write_lock != 0 || local_ticket != d->ticket_tail )
       {
-        printk(KERN_EMERG "Read waiting for lock\n");
         osp_spin_unlock(&d->mutex);
         schedule();
         osp_spin_lock(&d->mutex);
@@ -329,7 +334,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 		eprintk("Attempting to try acquire\n");
     
-    
     // If *filp is open for writing (filp_writable), then attempt
 		// to write-lock the ramdisk; 
     if(filp_writable)
@@ -379,12 +383,24 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// you need, and return 0.
     
      
-    if((filp->f_flags & F_OSPRD_LOCKED) != F_OSPRD_LOCKED)
+    if((filp->f_flags & F_OSPRD_LOCKED) == 0)
     {
       r = -EINVAL;
     }
     else
     {
+      if(filp_writable)
+      {
+        osp_spin_lock(&d->mutex);
+        d->write_lock = 0;
+        osp_spin_unlock(&d->mutex);
+      }
+      else
+      {
+        osp_spin_lock(&d->mutex);
+        d->read_locks--;
+        osp_spin_unlock(&d->mutex);
+      }
       filp->f_flags &= !F_OSPRD_LOCKED;
     }
     
