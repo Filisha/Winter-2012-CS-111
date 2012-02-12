@@ -193,6 +193,7 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// a lock, release the lock.  Also wake up blocked processes
 		// as appropriate.
 
+    osp_spin_lock(&d->mutex);
     if((filp->f_flags & F_OSPRD_LOCKED) == 0)
     {
       return 0;
@@ -201,20 +202,16 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
     {
       if(filp_writable != 0)
       {
-        osp_spin_lock(&d->mutex);
         d->write_lock = 0;
 				d->write_lock_pid = -1;
-        wake_up_all(&d->blockq);
-        osp_spin_unlock(&d->mutex);
       }
       else
       {
-        osp_spin_lock(&d->mutex);
         d->read_locks--;
-        wake_up_all(&d->blockq);
-        osp_spin_unlock(&d->mutex);
       }
+      wake_up_all(&d->blockq);
     }
+    osp_spin_unlock(&d->mutex);
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
 
@@ -417,6 +414,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
     if(d == NULL)
       return -1;
+      
+    osp_spin_lock(&d->mutex);
     
 		// If the file hasn't locked the ramdisk, return -EINVAL.
     if((filp->f_flags & F_OSPRD_LOCKED) == 0)
@@ -427,24 +426,21 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
     {
       if(filp_writable)
       {
-        osp_spin_lock(&d->mutex);
         // Clear the write lock and wake up others
         d->write_lock = 0;
 				d->write_lock_pid = -1;
         wake_up_all(&d->blockq);
-        osp_spin_unlock(&d->mutex);
       }
       else
       {
-        osp_spin_lock(&d->mutex);
         // Clear the read lock and wake up others
         d->read_locks--;
         wake_up_all(&d->blockq);
-        osp_spin_unlock(&d->mutex);
       }
       // Clear the lock from filp->f_flags
       filp->f_flags &= !F_OSPRD_LOCKED;
     }
+    osp_spin_unlock(&d->mutex);
     
 	} 
 	else
