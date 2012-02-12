@@ -47,20 +47,20 @@ module_param(nsectors, int, 0);
 
 /* The internal representation of our device. */
 typedef struct osprd_info {
-	uint8_t *data;                  // The data array. Its size is
-	                                // (nsectors * SECTOR_SIZE) bytes.
+	uint8_t *data;          // The data array. Its size is
+	                        // (nsectors * SECTOR_SIZE) bytes.
 
-	osp_spinlock_t mutex;           // Mutex for synchronizing access to
-					// this block device
+	osp_spinlock_t mutex;   // Mutex for synchronizing access to
+													// this block device
 
 	unsigned ticket_head;		// Currently running ticket for
-					// the device lock
+													// the device lock
 
 	unsigned ticket_tail;		// Next available ticket for
-					// the device lock
+													// the device lock
 
 	wait_queue_head_t blockq;       // Wait queue for tasks blocked on
-					// the device lock
+                                  // the device lock
           
   int read_locks;                 // Number of read locks
   
@@ -72,9 +72,9 @@ typedef struct osprd_info {
 	// The following elements are used internally; you don't need
 	// to understand them.
 	struct request_queue *queue;    // The device request queue.
-	spinlock_t qlock;		// Used internally for mutual
-	                                //   exclusion in the 'queue'.
-	struct gendisk *gd;             // The generic disk.
+	spinlock_t qlock;				// Used internally for mutual
+													// exclusion in the 'queue'.
+	struct gendisk *gd;     // The generic disk.
 } osprd_info_t;
 
 #define NOSPRD 4
@@ -111,6 +111,12 @@ static void for_each_open_file(struct task_struct *task,
  */
 static void osprd_process_request(osprd_info_t *d, struct request *req)
 {
+	// Declare variables at the beginning
+	// Calculate where to starta and the amount of data needed to copy
+	int data_size = req->current_nr_sectors * SECTOR_SIZE;
+	int data_offset = req->sector * SECTOR_SIZE;
+
+	// Check for a bad request
 	if (!blk_fs_request(req)) {
 		end_request(req, 0);
 		return;
@@ -124,9 +130,36 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// Consider the 'req->sector', 'req->current_nr_sectors', and
 	// 'req->buffer' members, and the rq_data_dir() function.
 
-	// Your code here.
-	eprintk("Should process request...\n");
-
+	// Your code here:
+	
+	// Check to see if we are trying to write to nonexistant sectors
+	if(req->sector + req->current_nr_sectors > nsectors)
+	{
+		eprintk("Trying to write to nonexistant sectors\n");
+		end_request(req, 0);
+	}
+	
+	// Read from the RAMDISK
+	// Copy the data in the requested sectors into the buffer
+	if(rq_data_dir(req) == READ)
+	{
+		memcpy(req->buffer, d->data + data_offset, data_size);
+	}
+	
+	// Write to the RAMDISK
+	// Copy the data in the buffer into the requested sectors
+	else if(rq_data_dir(req) == WRITE)
+	{
+		memcpy(d->data + data_offset, req->buffer, data_size);
+	}
+	
+	// Trying to perform an invalid action
+	else
+	{
+		eprintk("Neither a read nor a write\n");
+		end_request(req,0);
+	}
+	
 	end_request(req, 1);
 }
 
@@ -155,7 +188,19 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// a lock, release the lock.  Also wake up blocked processes
 		// as appropriate.
 
-		// Your code here.
+		if(filp_writable)
+    {
+      osp_spin_lock(&d->mutex);
+      d->write_lock = 0;
+      printk(KERN_EMERG "Finished \n");
+      osp_spin_unlock(&d->mutex);
+    }
+    else
+    {
+      osp_spin_lock(&d->mutex);
+      d->read_locks--;
+      osp_spin_unlock(&d->mutex);
+    }
 
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
@@ -212,6 +257,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       //  Busy wait (TODO: BLOCK instead) forconditions
       while( d->write_lock != 0 || d->read_locks != 0 || local_ticket != d->ticket_tail )
       {
+        printk(KERN_EMERG "Write waiting for lock\n");
         //prepare_to_wait(d->blockq, wait, TASK_INTERRUPTIBLE);
         osp_spin_unlock(&d->mutex);
         schedule();
@@ -228,6 +274,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       //  Busy wait (TODO: BLOCK instead) forconditions
       while( d->write_lock != 0 || local_ticket != d->ticket_tail )
       {
+        printk(KERN_EMERG "Read waiting for lock\n");
         osp_spin_unlock(&d->mutex);
         schedule();
         osp_spin_lock(&d->mutex);
@@ -287,7 +334,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// to write-lock the ramdisk; 
     if(filp_writable)
     {
-    osp_spin_lock(&d->mutex);
+      osp_spin_lock(&d->mutex);
       if( d->write_lock != 0 || d->read_locks != 0 || d->ticket_head != d->ticket_tail )
       {
         r = -EBUSY;
@@ -323,16 +370,24 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
     if(d == NULL)
       return -1;
+     
 		// EXERCISE: Unlock the ramdisk.
 		//
 		// If the file hasn't locked the ramdisk, return -EINVAL.
 		// Otherwise, clear the lock from filp->f_flags, wake up
 		// the wait queue, perform any additional accounting steps
 		// you need, and return 0.
-
-		// Your code here (instead of the next line).
-		r = -ENOTTY;
-
+    
+     
+    if((filp->f_flags & F_OSPRD_LOCKED) != F_OSPRD_LOCKED)
+    {
+      r = -EINVAL;
+    }
+    else
+    {
+      filp->f_flags &= !F_OSPRD_LOCKED;
+    }
+    
 	} else
 		r = -ENOTTY; /* unknown command */
 	return r;
