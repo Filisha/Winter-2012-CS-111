@@ -44,6 +44,11 @@ MODULE_AUTHOR("Cameron Solomon and Ervin Sukardi");
 static int nsectors = 32;
 module_param(nsectors, int, 0);
 
+struct pid_list{
+	pid_t pid;
+	struct pid_list* next;
+};
+typedef struct pid_list* pid_list_t;
 
 /* The internal representation of our device. */
 typedef struct osprd_info {
@@ -72,6 +77,10 @@ typedef struct osprd_info {
 	pid_t write_lock_pid;
 		// If a process has the write lock, this contains the process ID of 
 		// that process so that it cannot request a read lock; otherwise, it's -1
+
+	pid_list_t read_lock_pids;
+		// Processes that have read locks, which should not be allowed to get
+	  // write locks
 	
 	
 	// The following elements are used internally; you don't need
@@ -196,6 +205,7 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
     osp_spin_lock(&d->mutex);
     if((filp->f_flags & F_OSPRD_LOCKED) == 0)
     {
+      osp_spin_unlock(&d->mutex);
       return 0;
     }
     else
@@ -208,7 +218,28 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
       else
       {
         d->read_locks--;
+				
+				// Clear this PID from the read lock list
+				pid_list_t prev = d->read_lock_pids;
+				pid_list_t curr = d->read_lock_pids;
+				while(curr != NULL)
+				{
+					if(curr->pid == current->pid)
+					{
+            if(prev == NULL)
+              d->read_lock_pids = curr->next;
+            else
+              prev->next = curr->next;
+						break;
+					}
+					else
+					{
+						prev = curr;
+						curr = curr->next;
+					}
+				}
       }
+      
       wake_up_all(&d->blockq);
     }
     osp_spin_unlock(&d->mutex);
@@ -252,9 +283,9 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
     
     osp_spin_lock(&d->mutex);
     
-		// If we have the write lock and are trying to get the write lock
-		// again, we would have a deadlock
-		if(current->pid == d->write_lock_pid && filp_writable)
+		// If the current process already has a write lock, all locks are bad,
+		// and we would deadlock, so don't try
+		if(current->pid == d->write_lock_pid)
 		{
 			osp_spin_unlock(&d->mutex);
 			return -EDEADLK;
@@ -268,6 +299,24 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// to write-lock the ramdisk; 
     if(filp_writable)
     {
+			// Check to make sure this process doesn't have a read lock
+			// If this process has a read lock, we will deadlock, so don't try
+			pid_list_t prev = NULL;
+			pid_list_t curr = d->read_lock_pids;
+			while(curr != NULL)
+			{
+				if(curr->pid == current->pid)
+				{
+					osp_spin_unlock(&d->mutex);
+					return -EDEADLK;
+				}
+				else
+				{
+					prev = curr;
+					curr = curr->next;
+				}
+			}
+			
       // Block while conditions aren't met
       while( d->write_lock != 0 || d->read_locks != 0 || 
 						local_ticket != d->ticket_tail )
@@ -280,6 +329,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         osp_spin_lock(&d->mutex);
       }
       
+			// Activate the write lock
 			filp->f_flags |= F_OSPRD_LOCKED;
 			d->write_lock = 1;
 			d->write_lock_pid = current->pid;
@@ -298,19 +348,31 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         osp_spin_lock(&d->mutex);
       }
       
-			// If we have the write lock, and are trying to obtain a read lock,
-			// we will deadlock. Don't allow this.
-			if(current->pid == d->write_lock_pid)
-			{
-				osp_spin_unlock(&d->mutex);
-				return -EDEADLK;
-			}
+			filp->f_flags |= F_OSPRD_LOCKED;
+			d->read_locks++;
 			
+			// Add pid to read lock pid lists
+			pid_list_t prev = NULL;
+			pid_list_t curr = d->read_lock_pids;
+			while(curr != NULL)
+			{
+					prev = curr;
+					curr = curr->next;
+			}
+			if(prev == NULL)
+			{
+				d->read_lock_pids = kmalloc(sizeof(pid_list_t), GFP_ATOMIC);
+				d->read_lock_pids->pid = current->pid;
+				d->read_lock_pids->next = NULL;
+			}
 			else
 			{
-					filp->f_flags |= F_OSPRD_LOCKED;
-					d->read_locks++;
+				// assign to next
+				prev->next = kmalloc(sizeof(pid_list_t), GFP_ATOMIC);
+				prev->next->pid = current->pid;
+				prev->next->next = NULL;
 			}
+			
     }
     
     d->ticket_tail++;
@@ -386,7 +448,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
     // Otherwise attempt to read-lock the ramdisk.
     else
     {
-    osp_spin_lock(&d->mutex);
+			osp_spin_lock(&d->mutex);
       //  Check for conditions, it might be busy
       if( d->write_lock != 0 || d->ticket_head != d->ticket_tail )
       {
@@ -404,6 +466,27 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       {
         filp->f_flags |= F_OSPRD_LOCKED;
         d->read_locks++;
+				// Add pid to read lock pid lists
+				pid_list_t prev = NULL;
+				pid_list_t curr = d->read_lock_pids;
+				while(curr != NULL)
+				{
+					prev = curr;
+					curr = curr->next;
+				}
+				if(prev == NULL)
+				{
+					d->read_lock_pids = kmalloc(sizeof(pid_list_t), GFP_ATOMIC);
+					d->read_lock_pids->pid = current->pid;
+					d->read_lock_pids->next = NULL;
+				}
+				else
+				{
+					// assign to next
+					prev->next = kmalloc(sizeof(pid_list_t), GFP_ATOMIC);
+					prev->next->pid = current->pid;
+					prev->next->next = NULL;
+				}
       }
       osp_spin_unlock(&d->mutex);
     }
@@ -433,8 +516,31 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
       }
       else
       {
-        // Clear the read lock and wake up others
+        // Clear the read lock 
         d->read_locks--;
+				
+				// Clear this PID from the read lock list
+				pid_list_t prev = NULL;
+				pid_list_t curr = d->read_lock_pids;
+				while(curr != NULL)
+				{
+					if(curr->pid == current->pid)
+					{
+            if(prev == NULL)
+              d->read_lock_pids = curr->next;
+            else
+              prev->next = curr->next;
+						kfree(curr);
+						break;
+					}
+					else
+					{
+						prev = curr;
+						curr = curr->next;
+					}
+				}
+				
+				// Wake up other processes
         wake_up_all(&d->blockq);
       }
       // Clear the lock from filp->f_flags
@@ -460,6 +566,7 @@ static void osprd_setup(osprd_info_t *d)
   d->read_locks = 0;
   d->write_lock = 0;
 	d->write_lock_pid = -1;
+	d->read_lock_pids = NULL;
 	/* Add code here if you add fields to osprd_info_t. */
 }
 
