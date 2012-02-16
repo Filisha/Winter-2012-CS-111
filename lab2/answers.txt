@@ -9,14 +9,14 @@
 # the end of the file.
 
 # Partner 1
-Name: Ervin Sukardi
-Student ID: 203 808 277
-Email: emsukardi@gmail.com
+Name: Cameron Solomon
+Student ID: 603 809 897
+Email: cameronjsolomon@ucla.edu
 
 # Partner 2
-Name: Cameron Solomon
+Name: Ervin Sukardi
 Student ID: 203 808 277
-Email: 
+Email: Partner's Email Here
 
 
 # Add any other information you'd like us to have below this line.
