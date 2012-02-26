@@ -447,13 +447,18 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	while (r == 0 && ok_so_far >= 0 && f_pos >= 2) {
 		ospfs_direntry_t *od;
 		ospfs_inode_t *entry_oi;
-
+    // Number of bytes that the data of the directory takes up is how many files
+    // times the size of each directory entry
+    uint32_t size_bytes = dir_oi->oi_size * OSPFS_DIRENTRY_SIZE;
 		/* If at the end of the directory, set 'r' to 1 and exit
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		r = 1;		/* Fix me! */
-		break;		/* Fix me! */
+    if(f_pos > size_bytes)
+    {
+      r = 1;
+      break;
+    }
 
 		/* Get a pointer to the next entry (od) in the directory.
 		 * The file system interprets the contents of a
@@ -552,7 +557,37 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 static uint32_t
 allocate_block(void)
 {
-	/* EXERCISE: Your code here */
+  uint32_t os_nblocks = ospfs_super->os_nblocks;
+  // Keeep track of how many blocks into the bitmaps block we're looking
+  uint32_t bitmap_block_offset = 0;
+  // The first block of bitmap is at block 2
+  void* bitmap_block = ospfs_block(OSPFS_FREEMAP_BLK);
+  uint32_t current_block = 0;
+  
+  // Checcking a bit for every block, unless we've checked all blocks already
+  while(current_block < os_nblocks)
+  {
+    // If we've moved past a block boundry, get the next bitmap block
+    if(bitmap_block_offset != current_block/OSPFS_BLKBITSIZE)
+    {
+      bitmap_block_offset = current_block/OSPFS_BLKBITSIZE;
+      // Bitmap begins at 2, OSPFS_FREEMAP_BLK, 1 bit per block, 
+      // so at most OSPFS_BLKBITSIZE bits per block of bitmap
+      bitmap_block = ospfs_block(OSPFS_FREEMAP_BLK + bitmap_block_offset);
+    }
+    
+    // 1 in the bitmap means that block is free
+    if(bitvector_test(bitmap_block, current_block % OSPFS_BLKBITSIZE) == 1)
+    {
+      // Since this block is free, mark it allocated and return block no
+      bitvector_clear(bitmap_block, current_block % OSPFS_BLKBITSIZE);
+      return current_block;
+    }
+    
+    current_block++;
+  }
+  
+  // Bits representing every block were checked and allocated, so disk is full
 	return 0;
 }
 
@@ -571,7 +606,23 @@ allocate_block(void)
 static void
 free_block(uint32_t blockno)
 {
-	/* EXERCISE: Your code here */
+  uint32_t os_nblocks = ospfs_super->os_nblocks;
+  uint32_t valid_boundary = ospfs_super->os_firstinob;
+  // OSPFS_BLKINODES is how many inodes per block
+  // How many blocks past the first inode block will be taken by inodes
+  valid_boundary += ospfs_super->os_firstinob 
+                    + ospfs_super->os_ninodes/OSPFS_BLKINODES;
+  
+  // Make sure the block can be freed
+  if(blockno > valid_boundary)
+  {
+    // Get the block of the bitmap that the bit for blockno block will be
+    void* bitmap_block = 
+          ospfs_block(OSPFS_FREEMAP_BLK + blockno/OSPFS_BLKBITSIZE);
+    
+    // Set the bit in the bitmap to 1, indicating the block is free
+    bitvector_set(bitmap_block, blockno % OSPFS_BLKBITSIZE);
+  }
 }
 
 
