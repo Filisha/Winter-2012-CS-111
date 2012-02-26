@@ -652,13 +652,14 @@ free_block(uint32_t blockno)
 //		 block, 1 for the second, etc.)
 // Returns: 0 if block index 'b' requires using the doubly indirect
 //	       block, -1 if it does not.
-//
-// EXERCISE: Fill in this function.
 
 static int32_t
 indir2_index(uint32_t b)
 {
-	// Your code here.
+  if (b >= OSPFS_NDIRECT + OSPFS_NINDIRECT) 
+  {
+    return 0;
+  }
 	return -1;
 }
 
@@ -671,31 +672,45 @@ indir2_index(uint32_t b)
 //	    0 if b is located under the file's first indirect block;
 //	    otherwise, the offset of the relevant indirect block within
 //		the doubly indirect block.
-//
-// EXERCISE: Fill in this function.
 
 static int32_t
 indir_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b >= OSPFS_NDIRECT + OSPFS_NINDIRECT) 
+  {
+    uint32_t blockoff = b - (OSPFS_NDIRECT + OSPFS_NINDIRECT);
+    return blockoff / OSPFS_NINDIRECT;
+  } 
+  else if (b >= OSPFS_NDIRECT) 
+  {
+    return 0;
+  }
+  else
+		return -1;
 }
 
 
-// int32_t indir_index(uint32_t b)
-//	Returns the indirect block index for file block b.
+// int32_t direct_index(uint32_t b)
+//	Returns the direct block index for file block b.
 //
 // Inputs:  b -- the zero-based index of the file block
 // Returns: the index of block b in the relevant indirect block or the direct
 //	    block array.
-//
-// EXERCISE: Fill in this function.
 
 static int32_t
 direct_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b >= OSPFS_NDIRECT + OSPFS_NINDIRECT) 
+  {
+    uint32_t blockoff = b - (OSPFS_NDIRECT + OSPFS_NINDIRECT);
+    return blockoff % OSPFS_NINDIRECT;
+  } 
+  else if (b >= OSPFS_NDIRECT) 
+  {
+    return b - OSPFS_NDIRECT;
+  }
+  else
+    return b;
 }
 
 
