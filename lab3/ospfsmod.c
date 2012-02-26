@@ -309,7 +309,8 @@ ospfs_fill_super(struct super_block *sb, void *data, int flags)
 }
 
 static int
-ospfs_get_sb(struct file_system_type *fs_type, int flags, const char *dev_name, void *data, struct vfsmount *mount)
+ospfs_get_sb(struct file_system_type *fs_type, int flags, 
+						 const char *dev_name, void *data, struct vfsmount *mount)
 {
 	return get_sb_single(fs_type, flags, data, ospfs_fill_super, mount);
 }
@@ -438,7 +439,8 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	}
 
 	if (r == 0 && ok_so_far >= 0 && f_pos == 1) {
-		ok_so_far = filldir(dirent, "..", 2, f_pos, filp->f_dentry->d_parent->d_inode->i_ino, DT_DIR);
+		ok_so_far = filldir(dirent, "..", 2, f_pos, 
+												filp->f_dentry->d_parent->d_inode->i_ino, DT_DIR);
 		if (ok_so_far >= 0)
 			f_pos++;
 	}
@@ -450,15 +452,19 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
     // Number of bytes that the data of the directory takes up is how many files
     // times the size of each directory entry
     uint32_t size_bytes = dir_oi->oi_size * OSPFS_DIRENTRY_SIZE;
+
 		/* If at the end of the directory, set 'r' to 1 and exit
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-    if(f_pos > size_bytes)
-    {
-      r = 1;
-      break;
-    }
+		
+		// Compare its location to the size of the directory
+		// File Position is adjusted by 2 to account for "." and ".."
+		if( (f_pos - 2) >= size_bytes )
+		{
+			r = 1;
+			break;
+		}
 
 		/* Get a pointer to the next entry (od) in the directory.
 		 * The file system interprets the contents of a
@@ -481,6 +487,47 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 */
 
 		/* EXERCISE: Your code here */
+		
+		// Get the inode location
+		od = ospfs_inode_data(dir_oi, (f_pos - 2) * OSPFS_DIRENTRY_SIZE);
+		
+		// Get the inode
+		entry_oi = ospfs_inode(od->od_ino);
+		
+		// Get the type of file
+		int file_type;
+		if(entry_oi != NULL)
+		{
+			switch(entry_oi->oi_ftype)
+			{
+				// Regular Files
+				case OSPFS_FTYPE_REG:
+					file_type = DT_REG;
+					break;
+
+				// Subdirectories
+				case OSPFS_FTYPE_DIR:
+					file_type = DT_DIR;
+					break;
+					
+				// Symbolic Links
+				case OSPFS_FTYPE_SYMLINK:
+					file_type = DT_LNK;
+					break;
+					
+				// Weird, error case
+				default:
+					r = 1;
+					continue;
+			}
+			
+			// Execute callback function
+			ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name),
+													f_pos, od->od_ino, file_type);
+		}
+		
+		// Move to the next file position
+		f_pos++;
 	}
 
 	// Save the file position and return!
