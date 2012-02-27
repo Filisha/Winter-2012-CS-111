@@ -1083,8 +1083,6 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count,
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.
-		retval = -EIO;	// Replace me
-		goto done;			// Replace me, too
 		
 		// Calculate amount of data to write
 		// *fpos % OSPFS_BLKSIZE		amount of used space in the first block
