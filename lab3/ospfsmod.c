@@ -783,12 +783,15 @@ static int
 add_block(ospfs_inode_t *oi)
 {
   int i;
+  uint32_t n;
+  uint32_t * newblock;
+  uint32_t newblock_no;
   
   if(oi->oi_ftype == OSPFS_FTYPE_SYMLINK)
 		return 0;
 
 	// current number of blocks in file
-	uint32_t n = ospfs_size2nblocks(oi->oi_size);
+	n = ospfs_size2nblocks(oi->oi_size);
 
 	// keep track of allocations to free in case of -ENOSPC
 	uint32_t allocated[2] = { 0, 0 };
@@ -805,7 +808,7 @@ add_block(ospfs_inode_t *oi)
     }
       
      // Zero out new block
-    uint32_t * newblock = ospfs_block(allocated[1]);
+    newblock = ospfs_block(allocated[1]);
     for(i = 0; i < OSPFS_BLKSIZE / 4; i++)
       newblock[i] = 0;
   }
@@ -824,12 +827,12 @@ add_block(ospfs_inode_t *oi)
     }
      
     // Zero out new block
-    uint32_t * newblock = ospfs_block(allocated[0]);
+    newblock = ospfs_block(allocated[0]);
     for(i = 0; i < OSPFS_BLKSIZE / 4; i++)
       newblock[i] = 0;
   }
    
-  uint32_t newblock_no = allocate_block();
+  newblock_no = allocate_block();
   
   // If allocation fails for the actual data block
   if(newblock_no == 0)
@@ -1347,15 +1350,45 @@ find_direntry(ospfs_inode_t *dir_oi, const char *name, int namelen)
 static ospfs_direntry_t *
 create_blank_direntry(ospfs_inode_t *dir_oi)
 {
-	// Outline:
-	// 1. Check the existing directory data for an empty entry.  Return one
+  ospfs_direntry_t *od = NULL;
+  uint32_t dir_i = 0;
+  int r;
+  
+  // 1. Check the existing directory data for an empty entry.  Return one
 	//    if you find it.
-	// 2. If there's no empty entries, add a block to the directory.
+  
+  while( dir_i < dir_oi->oi_size)
+  {
+    od = ospfs_inode_data(dir_oi, dir_i);
+    
+    // If there's an empty dir entry
+    if(od->od_ino == 0)
+    {
+      break;
+    }
+    od = NULL;
+    dir_i += OSPFS_DIRENTRY_SIZE;
+  }
+  
+  // 2. If there's no empty entries, add a block to the directory.
 	//    Use ERR_PTR if this fails; otherwise, clear out all the directory
 	//    entries and return one of them.
-
-	/* EXERCISE: Your code here. */
-	return ERR_PTR(-EINVAL); // Replace this line
+  if( od == NULL)
+  {
+    // Try to increase the size of directory inode to accomadate the new entry
+    r = change_size(dir_oi, dir_oi->oi_size + OSPFS_DIRENTRY_SIZE);
+    if( r < 0)
+      return ERR_PTR(r);
+    
+    // Start of the new dir entry is OSPFS_DIRENTRY_SIZE before the end of
+    //  the new size
+    od = ospfs_inode_data(dir_oi, dir_oi->oi_size - OSPFS_DIRENTRY_SIZE);
+  }
+  
+  // Zero out the new dir entry
+	od->od_ino = 0;
+  od->od_name[0] = 0;
+	return od;
 }
 
 // ospfs_link(src_dentry, dir, dst_dentry
@@ -1390,25 +1423,26 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
   ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
-  
+  ospfs_direntry_t *od;
+  ospfs_inode_t *src_inode;
   // Check to see if a file exists already
   if(find_direntry(dir_oi, dst_dentry->d_name.name, 
                     dst_dentry->d_name.len) != NULL)
     return -EEXIST;
     
   // Get a new directory entry
-  ospfs_direntry_t *od = create_blank_direntry(dir_oi);
+  od = create_blank_direntry(dir_oi);
   if (IS_ERR(od))
     return PTR_ERR(od);
     
   // Fill in directory entry with dst_dentry name
-  if(dst_dentry->d_name.len OSPFS_MAXNAMELEN)
+  if(dst_dentry->d_name.len > OSPFS_MAXNAMELEN)
     return -ENAMETOOLONG;
   strncpy(od->od_name, dst_dentry->d_name.name, dst_dentry->d_name.len);
   od->od_name[dst_dentry->d_name.len] = 0;
   
   // Increase the number links for the file
-  ospfs_inode_t *src_inode = ospfs_inode(src_dentry->d_inode->i_ino);
+  src_inode = ospfs_inode(src_dentry->d_inode->i_ino);
   src_inode->oi_nlink++;
   
   // Put existing file inode # in i_ino
@@ -1452,6 +1486,8 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode,
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+  ospfs_direntry_t *new_directory;
+	ospfs_inode_t *new_inode;
 
 	// EXERCISE:
 	// Check for name length error
@@ -1468,14 +1504,13 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode,
 	
 	// Find an empty directory. 
 	// If we fail and get a pointer error, return a pointer error in the same way
-	ospfs_direntry_t *new_directory = create_blank_direntry(dir_oi);
+	new_directory = create_blank_direntry(dir_oi);
 	if( IS_ERR(new_directory) )
 	{
 		return PTR_ERR(new_directory);
 	}
 	
 	// Find an empty inode
-	ospfs_inode_t *new_inode;
 	while(entry_ino < ospfs_super->os_ninodes)
 	{
 		// Get the inode at that entry
@@ -1553,11 +1588,12 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 2;
-  ospfs_symlink_inode_t new_inode;
+  ospfs_symlink_inode_t *new_inode;
+  ospfs_direntry_t *od;
   
   // Check for -EEXIST
-  if(find_direntry(dir_oi, dst_dentry->d_name.name, 
-                    dst_dentry->d_name.len) != NULL)
+  if(find_direntry(dir_oi, dentry->d_name.name, 
+                    dentry->d_name.len) != NULL)
   {
     return -EEXIST;
   }
@@ -1565,7 +1601,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
   // Find an open inode
   while(entry_ino < ospfs_super->os_ninodes)
   {
-    new_inode = ospfs_inode(entry_ino);
+    new_inode = (ospfs_symlink_inode_t*)ospfs_inode(entry_ino);
     // Check the nlinks to see if this inode is free
     if(new_inode->oi_nlink == 0)
       break;
@@ -1578,7 +1614,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
     return -ENOSPC;
   
   // Find an open directory entry
-  ospfs_direntry_t *od = create_blank_direntry(dir_oi);
+  od = create_blank_direntry(dir_oi);
   if (IS_ERR(od))
     return PTR_ERR(od);
   
@@ -1597,8 +1633,8 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
   new_inode->oi_symlink[new_inode->oi_size] = 0;
   
   // Fill in directory entry with inode number and dentry info
-  strncpy(od->od_name, dst_dentry->d_name.name, dst_dentry->d_name.len);
-  od->od_name[dst_dentry->d_name.len] = 0;
+  strncpy(od->od_name, dentry->d_name.name, dentry->d_name.len);
+  od->od_name[dentry->d_name.len] = 0;
   od->od_ino = entry_ino;
 
 	/* Execute this code after your function has successfully created the
