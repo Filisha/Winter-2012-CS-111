@@ -1245,13 +1245,72 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //   EXERCISE: Complete this function.
 
 static int
-ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
+ospfs_create(struct inode *dir, struct dentry *dentry, int mode, 
+						 struct nameidata *nd )
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
-	/* EXERCISE: Your code here. */
-	return -EINVAL; // Replace this line
 
+	// EXERCISE:
+	// Check for name length error
+	if(dentry->d_name.len > OSPFS_MAXNAMELEN)
+	{
+		return -ENAMETOOLONG;
+	}
+	
+	// Check for duplicate existance error
+	if( find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len) != NULL)
+	{
+		return -EEXIST;
+	}
+	
+	// Find an empty directory. 
+	// If we fail and get a pointer error, return a pointer error in the same way
+	ospfs_direntry_t *new_directory = create_blank_direntry(dir_oi);
+	if( IS_ERR(new_directory) )
+	{
+		return PTR_ERR(new_directory);
+	}
+	
+	// Find an empty inode
+	ospfs_inode_t *new_inode;
+	while(entry_ino < ospfs_super->os_ninodes)
+	{
+		// Get the inode at that entry
+		new_inode = ospfs_inode(entry_ino);
+		
+		// Success if the inode is found, and is also free
+		if(new_inode && new_inode->oi_nlink == 0)
+		{
+			new_inode->oi_nlink++;
+			break;
+		}
+		
+		// Otherwise, keep going
+		entry_ino++;
+	}
+	
+	// If we failed to find a free inode, we're out of space
+	if(entry_ino == ospfs_super->os_ninodes)
+	{
+		return -ENOSPC;
+	}
+	
+	// Initialize all of the inode struct's members
+	new_inode->oi_size = 0;
+	new_inode->oi_ftype = OSPFS_FTYPE_REG;
+	new_inode->oi_mode = mode;
+	memset(new_inode->oi_direct, 0, sizeof(new_inode->oi_direct[0]) * OSPFS_NDIRECT);
+	new_inode->oi_indirect = 0;
+	new_inode->oi_indirect2 = 0;
+	
+	// Initialize the directory struct's members
+	new_directory->od_ino = entry_ino;
+	memcpy(new_directory->od_name, dentry->d_name.name, dentry->d_name.len);
+	new_directory->od_name[dentry->d_name.len] = 0;
+
+	
+	
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
 	   getting here. */
