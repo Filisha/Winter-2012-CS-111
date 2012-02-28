@@ -1650,6 +1650,31 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 }
 
 
+// Helper Function for ospfs_follow_link
+// Given the a character and a character array, it returns the index of the
+// first occurance of that character, or -1 if the character does not exist
+int find_first_index(char* arr, char c)
+{
+	// If array is null, return -1
+	if(arr == NULL)
+		return -1;
+	
+	int k = 0;
+	
+	// Go through the array until we either reach the character we want,
+	// or a null byte
+	while(arr[k] != 0)
+	{
+		// Return index if character is found
+		if(arr[k] == c)
+			return k;
+	}
+	
+	// Return -1 for failure
+	return -1;
+}
+
+
 // ospfs_follow_link(dentry, nd)
 //   Linux calls this function to follow a symbolic link.
 //   It is the ospfs_symlink_inode_ops.follow_link callback.
@@ -1668,9 +1693,65 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
-	// Exercise: Your code here.
-
-	nd_set_link(nd, oi->oi_symlink);
+	
+	// Exercise: Your code here:
+	
+	// Indexes we use for loops
+	int i = 0;
+	int k = 0;
+	
+	// Find indices of '?' and ':'
+	int q_index = find_first_index(oi->oi_symlink, '?');
+	int c_index = find_first_index(oi->oi_symlink, ':'); 
+	
+	// Prepare for storing condition and possible destinations
+	char* cond;		// The condition, which is compared to root
+	char* dest;		// The conditional symlink destination
+	
+	// If both are found, we have a conditional symlink
+	if(q_index != -1 && c_index != -1)
+	{
+		// Allocate data
+		cond = kmalloc(oi->oi_size, GFP_ATOMIC);
+		dest = kmalloc(oi->oi_size, GFP_ATOMIC);
+		
+		// Find condition, which is from the string beginning to ?
+		for(i = 0; i < q_index; i++)
+		{
+			cond[i] = oi->oi_symlink[i];
+		}
+		
+		// We need to be root, and the symlink set to root to meet conditions
+		if(current->uid == 0 && strcmp(cond, "root") == 0)
+		{
+			// Find the first destination, which is between ? and :
+			for(i = (q_index + 1); i < c_index; i++)
+			{
+				dest[k] = oi->oi_symlink[i];
+				k++;
+			}
+			
+			// Set the symlink
+			nd_set_link(nd, dest);
+		}
+		else
+		{
+			// Find the second destination, which from the : to string end
+			for(i = (c_index + 1); oi->oi_symlink[i] != 0; i++)
+			{
+				dest[k] = oi->oi_symlink[i];
+				k++;
+			}
+			
+			// Set the symlink
+			nd_set_link(nd, dest);
+		}
+	}
+	
+	// Otherwise, it's just a normal symlink
+	else
+		nd_set_link(nd, oi->oi_symlink);
+	
 	return (void *) 0;
 }
 
