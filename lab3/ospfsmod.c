@@ -1257,7 +1257,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count,
 			goto done;
 		}
 
-		data = ospfs_block(blockno);
+		data = ospfs_inode_data(oi, *f_pos);
 
 		// EXERCISE:
 		// Figure out how much data is left in this block to write.
