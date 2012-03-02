@@ -1668,6 +1668,9 @@ int find_first_index(char* arr, char c)
 		// Return index if character is found
 		if(arr[k] == c)
 			return k;
+		
+		// Else, keep going
+		k++;
 	}
 	
 	// Return -1 for failure
@@ -1720,6 +1723,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		{
 			cond[i] = oi->oi_symlink[i];
 		}
+		cond[i] = 0;
 		
 		// We need to be root, and the symlink set to root to meet conditions
 		if(current->uid == 0 && strcmp(cond, "root") == 0)
@@ -1730,6 +1734,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 				dest[k] = oi->oi_symlink[i];
 				k++;
 			}
+			dest[k] = 0;
 			
 			// Set the symlink
 			nd_set_link(nd, dest);
@@ -1742,6 +1747,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 				dest[k] = oi->oi_symlink[i];
 				k++;
 			}
+			dest[k] = 0;
 			
 			// Set the symlink
 			nd_set_link(nd, dest);
