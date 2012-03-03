@@ -91,6 +91,17 @@ close FOO;
       '15'
     ],
 
+    # conditional symbolic link, by root
+    [ 'echo root>root; echo notroot>notroot; ln -s root?root:notroot symroot; cat symroot',
+      'root'
+    ],
+
+    # conditional symbolic link, by non-root user
+    [ 'su user -c "cat symroot"',
+      'notroot'
+    ],
+
+
 );
 
 my($ntest) = 0;

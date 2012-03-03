@@ -1586,6 +1586,9 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode,
 static int
 ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
+	
+	// eprintk("CREATING A SYMLINK\n");
+	
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 2;
   ospfs_symlink_inode_t *new_inode;
@@ -1645,6 +1648,9 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		if (!i)
 			return -ENOMEM;
 		d_instantiate(dentry, i);
+		
+		// eprintk("SYMLINK CREATION FINISHED\n");
+		
 		return 0;
 	}
 }
@@ -1663,7 +1669,7 @@ int find_first_index(char* arr, char c)
 	
 	// Go through the array until we either reach the character we want,
 	// or a null byte
-	while(arr[k] != 0)
+	while(arr[k] != '\0')
 	{
 		// Return index if character is found
 		if(arr[k] == c)
@@ -1711,9 +1717,12 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	char* cond;		// The condition, which is compared to root
 	char* dest;		// The conditional symlink destination
 	
+	// eprintk("SYMLINK TYPE: ");
+	
 	// If both are found, we have a conditional symlink
 	if(q_index != -1 && c_index != -1)
 	{
+		// eprintk("Conditional Symlink\n");
 		// Allocate data
 		cond = kmalloc(oi->oi_size, GFP_ATOMIC);
 		dest = kmalloc(oi->oi_size, GFP_ATOMIC);
@@ -1742,7 +1751,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		else
 		{
 			// Find the second destination, which from the : to string end
-			for(i = (c_index + 1); oi->oi_symlink[i] != 0; i++)
+			for(i = (c_index + 1); oi->oi_symlink[i] != '\0'; i++)
 			{
 				dest[k] = oi->oi_symlink[i];
 				k++;
@@ -1756,7 +1765,10 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	
 	// Otherwise, it's just a normal symlink
 	else
+	{
+		// eprintk("Normal Symlink\n");
 		nd_set_link(nd, oi->oi_symlink);
+	}
 	
 	return (void *) 0;
 }
