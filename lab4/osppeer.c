@@ -777,17 +777,18 @@ int main(int argc, char *argv[])
 				error("UNABLE TO FORK FOR DOWNLOADS\n");
 
 			// If we are the parent, we want to do nothing
-			else if(pid == 0)
-			{	}
+			else if(pid > 0)
+			{			}
 				
 			// If we are the child, we perform the download, then exit
-			else if(pid > 0)
+			else if(pid == 0)
 			{
 				task_download(t, tracker_task);
 				_exit(0);
 			}
 		}
 	}
+	
 
 	// Then accept connections from other peers and upload files to them!
 	// PART 1B: PARALLEL UPLOADS
@@ -802,16 +803,16 @@ int main(int argc, char *argv[])
 			error("UNABLE TO FORK FOR UPLOADS\n");
 		
 		// If we are the parent, we want to do nothing
-		else if(pid == 0)
-		{	}
+		else if(pid > 0)
+		{		}
 		
 		// If we are the child, we want to perform the upload, and then exit
-		else if(pid > 0)
+		else if(pid == 0)
 		{
 			task_upload(t);
 			_exit(0);
 		}
 	}
-
+	
 	return 0;
 }
