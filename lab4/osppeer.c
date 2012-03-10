@@ -759,13 +759,59 @@ int main(int argc, char *argv[])
 	register_files(tracker_task, myalias);
 
 	// First, download files named on command line.
+	// PART 1A: PARALLEL DOWNLOADS
+	// Fork all of the downloads into their own threads
+	// After forking:
+	//	Parent: Continue looping and starting more downloads, until none are left
+	//  Child:  Download, then exit
+	pid_t pid;
 	for (; argc > 1; argc--, argv++)
+	{
 		if ((t = start_download(tracker_task, argv[1])))
-			task_download(t, tracker_task);
+		{
+			// Fork the process!
+			pid = fork();
+			
+			// If we failed to fork, error out
+			if(pid == -1)
+				error("UNABLE TO FORK FOR DOWNLOADS\n");
+
+			// If we are the parent, we want to do nothing
+			else if(pid == 0)
+			{	}
+				
+			// If we are the child, we perform the download, then exit
+			else if(pid > 0)
+			{
+				task_download(t, tracker_task);
+				_exit(0);
+			}
+		}
+	}
 
 	// Then accept connections from other peers and upload files to them!
+	// PART 1B: PARALLEL UPLOADS
+	// Fork all of the uploads into their own threads
 	while ((t = task_listen(listen_task)))
-		task_upload(t);
+	{
+		// Fork the process
+		pid = fork();
+		
+		// If we failed to fork, error out
+		if(pid == -1)
+			error("UNABLE TO FORK FOR UPLOADS\n");
+		
+		// If we are the parent, we want to do nothing
+		else if(pid == 0)
+		{	}
+		
+		// If we are the child, we want to perform the upload, and then exit
+		else if(pid > 0)
+		{
+			task_upload(t);
+			_exit(0);
+		}
+	}
 
 	return 0;
 }
