@@ -476,7 +476,14 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		error("* Error while allocating task");
 		goto exit;
 	}
-	strcpy(t->filename, filename);
+	
+	// TASK 2: BUFFER OVERRUN
+	// We're not sure how long filename is, so we should only copy as many bytes 
+	// as our permitted filesize.  strncpy allows you to set a maximum size for 
+	// copying, which will be FILENAMESIZ
+	// Don't forget the null terminator at the end
+	strncpy(t->filename, filename, FILENAMESIZ);
+	t->filename[FILENAMESIZ - 1] = '\0';
 
 	// add peers
 	s1 = tracker_task->buf;
@@ -761,7 +768,6 @@ int main(int argc, char *argv[])
 	// First, download files named on command line.
 	// PART 1A: PARALLEL DOWNLOADS
 	// Fork all of the downloads into their own threads
-	// After forking:
 	//	Parent: Continue looping and starting more downloads, until none are left
 	//  Child:  Download, then exit
 	pid_t pid;
@@ -776,7 +782,7 @@ int main(int argc, char *argv[])
 			if(pid == -1)
 				error("UNABLE TO FORK FOR DOWNLOADS\n");
 
-			// If we are the parent, we want to do nothing
+			// If we are the parent, we want to just keep going
 			else if(pid > 0)
 			{			}
 				
@@ -802,7 +808,7 @@ int main(int argc, char *argv[])
 		if(pid == -1)
 			error("UNABLE TO FORK FOR UPLOADS\n");
 		
-		// If we are the parent, we want to do nothing
+		// If we are the parent, we want to just keep going
 		else if(pid > 0)
 		{		}
 		
