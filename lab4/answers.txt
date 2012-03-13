@@ -24,6 +24,7 @@ Email: emsukardi@gmail.com
 
 # EXERCISE 1: What method you used to make your peer download and upload
 #    files in parallel?  (~1-3 sentences)
+
 Our method for running peer downloads and uploads in parallel was to use fork()
 to create new threads that would complete downloads and uploads for us.
 Our version of osppeer has a single parent process create a new child process
@@ -34,8 +35,38 @@ and upload instances until the user interrupts it.
 # EXERCISE 2A: What conditions did you find and fix that would have
 #    triggered a buffer overrun bug?  (~1-3 sentences each)
 
+Filename Buffer
+Found a buffer overrun bug where if a filename longer than FILENAMESIZ-1 would
+overflow the filename buffer. Bug was fixed by using a strncpy instead of a
+strcpy, restricting the filename length to FILENAMESIZ, and always adding
+the null terminator at the end of the string for when the buffer is later 
+read or copied.
+
 # EXERCISE 2B: What other robustness problems did you fix?  (~1-3 sentences
 #    each)
+
+1.  Block Peers from Downloading From Other Directories
+When serving a peer, we first do a check on the filename the peer is requesting.
+If the filename is too long (checked using strlen) or contains the '/' 
+character (checked using a loop), we print a number of error statements, then
+free that particular upload thread.
+
+2.  Increase Robustness of the Task Buffer
+The task buffer size TASKBUFSIZ is sometimes not large enough to accommodate
+a large number of peers, causing us to prematurely disconnect from the tracker.
+To fix this robustly, we would have to change how we read the buffer to only
+read complete lines, not partial lines. We then have to rewrite the
+read_tracker_response function to recognize near-full buffers, and inform
+downloads to wait if the buffer is full.
+This would require rewriting large sections of code. Instead we simply 
+made the size of the task buffer 16 times larger, from 4096 to 65536.
+
+2.  Prevent Peers from Sending Endless Data
+
+
+
+Check Integrity of Downloaded Data
+[EXTRA CREDIT]
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)

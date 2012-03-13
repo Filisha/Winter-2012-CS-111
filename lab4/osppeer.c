@@ -35,7 +35,14 @@ static int listen_port;
  * a bounded buffer that simplifies reading from and writing to peers.
  */
 
-#define TASKBUFSIZ	4096	// Size of task_t::buf
+
+// EXERCISE 2B: INCREASE TASK BUFFER ROBUSTNESS
+// It is very difficult to actually reallocate the size of the task buffer,
+// espeiclaly when using parallel uploads and downloads. Therefore, we simply
+// made the task buffer 16 times larger to accomidate popular trackers
+#define TASKBUFSIZ	65536		// Increase the buffer size to 2^16 
+//#define TASKBUFSIZ	4096	// Size of task_t::buf  (2^12)
+
 #define FILENAMESIZ	256	// Size of task_t::filename
 
 typedef enum tasktype {		// Which type of connection is this?
@@ -477,14 +484,13 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		goto exit;
 	}
 	
-	// TASK 2: BUFFER OVERRUN
-	// We're not sure how long filename is, so we should only copy as many bytes 
-	// as our permitted filesize.  strncpy allows you to set a maximum size for 
-	// copying, which will be FILENAMESIZ
-	// Don't forget the null terminator at the end
+	// EXERCISE 2A: FILENAME BUFFER OVERRUN
+	// Avoid downloading a file with a name that is too long
+	// The max number of bytes to copy is FILENAMESIZ, so use strncpy to
+	// limit how much we copy, and add a null terminator at the end.
 	strncpy(t->filename, filename, FILENAMESIZ);
 	t->filename[FILENAMESIZ - 1] = '\0';
-
+	
 	// add peers
 	s1 = tracker_task->buf;
 	while ((s2 = memchr(s1, '\n', (tracker_task->buf + messagepos) - s1))) {
@@ -656,6 +662,32 @@ static void task_upload(task_t *t)
 	}
 	t->head = t->tail = 0;
 
+	
+	// EXERCISE 2B: BLOCK ACCESS TO OTHER DIRECTORIES
+	// First, make sure that the filename is not too long
+	if(strlen(t->filename) > FILENAMESIZ)
+	{
+		error("ERROR: Possible Attack Detected!\n");
+		error("ERROR: Peer passed a filename that is too long\n");
+		error("ERROR: ENDING UPLOAD INSTANCE\n");
+		goto exit;
+	}
+	// Then, check through the entire filename. If we detect a '/', kill this 
+	// upload instance; they are trying to download from the wrong directory
+	int k;
+	for(k = 0; k < FILENAMESIZ && t->filename[k] != '\0'; k++)
+	{
+		if(t->filename[k] == '/')
+		{
+			error("ERROR: Possible Attack Detected!\n");
+			error("ERROR: Peer requested a file from an invalid directory\n");
+			error("ERROR: Filename: %s\n", t->filename);
+			error("ERROR: ENDING UPLOAD INSTANCE\n");
+			goto exit;
+		}
+	}
+
+	
 	t->disk_fd = open(t->filename, O_RDONLY);
 	if (t->disk_fd == -1) {
 		error("* Cannot open file %s", t->filename);
@@ -766,7 +798,7 @@ int main(int argc, char *argv[])
 	register_files(tracker_task, myalias);
 
 	// First, download files named on command line.
-	// PART 1A: PARALLEL DOWNLOADS
+	// EXERCISE 1A: PARALLEL DOWNLOADS
 	// Fork all of the downloads into their own threads
 	//	Parent: Continue looping and starting more downloads, until none are left
 	//  Child:  Download, then exit
@@ -797,7 +829,7 @@ int main(int argc, char *argv[])
 	
 
 	// Then accept connections from other peers and upload files to them!
-	// PART 1B: PARALLEL UPLOADS
+	// EXERCISE 1B: PARALLEL UPLOADS
 	// Fork all of the uploads into their own threads
 	while ((t = task_listen(listen_task)))
 	{
