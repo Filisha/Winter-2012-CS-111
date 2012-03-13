@@ -71,6 +71,16 @@ already consider this to be the maximum file size. To test on a smaller
 upper limit, simply change the value of MAXIMUM_FILE_SIZE to something
 smaller, such as 1 MiB (2^20).
 
+NOTE:
+There may be problems with attackers who simply upload bytes very slowly.
+Because we are unable to distinguish between a peer who is legitimately 
+running very slowly and/or providing a large file, and a bad peer that is
+intentionally running slowly, the particular download thread will wait for
+the download to finish or for the size limit to be exceeded.
+However, because all downloads and uploads have their own threads, this 
+should not affect other files.
+
+
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)
