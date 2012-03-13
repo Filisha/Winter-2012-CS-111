@@ -74,6 +74,26 @@ smaller, such as 1 MiB (2^20).
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)
+Download attacks:  Get the list of peers serving cat1.jpg and attempt to attack 
+each of them.
+First try to attack them by buffer overflow.  Send them a GET request with a 
+filename nearly 4 times filename buffer size, not null ended.  When the peer 
+attempts to strcpy the name they will cause segfaults if they have not 
+properly checked the filename is too long.  If we crafted it even better, it
+might be possible to attack by putting some attack code into the overflow.
+Attempt to grab the osppeer.c code itself by attempting a GET ../osppeer.c
+this is merely a violation of security, we can now see how their peer runs.  The
+info is great for planning some future attacks on them and exploiting bugs in
+their code.
+Next attempt to clog them up by starting a lot of socket connections and
+requesting a valid file.  The peer may fill up their buffer or spend a lot of
+effort servicing these requests while we don't even look at the data they give
+us.
+Upload attack: When a peer connects, give them an unlimited data stream
+simply continue sending trash data to the peer without stopping.  The peer
+may have no way of knowing whether this is the valid file, and if it doesn't
+stop us from sending data, it's harddisk could fill up with useless data.
+
 
 # Extra credit problems
 #Extra credit problem: none
