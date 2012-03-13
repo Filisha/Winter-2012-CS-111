@@ -61,12 +61,16 @@ downloads to wait if the buffer is full.
 This would require rewriting large sections of code. Instead we simply 
 made the size of the task buffer 16 times larger, from 4096 to 65536.
 
-2.  Prevent Peers from Sending Endless Data
+3.  Prevent Peers from Sending Endless Data
+To prevent a peer from just continuously sending data, we set an upper limit 
+to how large of a file you can download. If a peer attempts to send more bytes
+than MAXIMUM_FILE_SIZE, we stop downloading from that peer, and try downloading
+from a different peer.
+This limit is currently set to 2 GiB (2^31 bytes), since 32-bit file systems
+already consider this to be the maximum file size. To test on a smaller
+upper limit, simply change the value of MAXIMUM_FILE_SIZE to something
+smaller, such as 1 MiB (2^20).
 
-
-
-Check Integrity of Downloaded Data
-[EXTRA CREDIT]
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)
