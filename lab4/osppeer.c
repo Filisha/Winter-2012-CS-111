@@ -150,12 +150,22 @@ static void task_free(task_t *t)
  * the application layer.
  */
 
-typedef enum taskbufresult {		// Status of a read or write attempt.
-	TBUF_ERROR = -1,		// => Error; close the connection.
+// EXERCISE 2B: PREVENT ENDLESS DATA
+// Because we don't know the maximum file size we use this variable to set
+// an upper limit of how large the file should be. A download or upload will
+// halt and be retried if the file's size ever exceeds this value.
+// The 2 GiB is our recommended setting, since 32-bit systems only support
+// files that large; however, for testing purposes, we also have a 1 MiB setting
+		#define MAXIMUM_FILE_SIZE 2147483648	// 2^31, or 2 GiB
+//	#define MAXIMUM_FILE_SIZE 1048576			// 2^20, or 1 MiB
+
+// Status of a read or write attempt.
+typedef enum taskbufresult {		
+	TBUF_ERROR = -1,	// => Error; close the connection.
 	TBUF_END = 0,			// => End of file, or buffer is full.
 	TBUF_OK = 1,			// => Successfully read data.
-	TBUF_AGAIN = 2			// => Did not read data this time.  The
-					//    caller should wait.
+	TBUF_AGAIN = 2		// => Did not read data this time.  The caller should wait
+
 } taskbufresult_t;
 
 // read_to_taskbuf(fd, t)
@@ -171,7 +181,9 @@ taskbufresult_t read_to_taskbuf(int fd, task_t *t)
 	ssize_t amt;
 
 	if (t->head == t->tail || headpos < tailpos)
+	{
 		amt = read(fd, &t->buf[tailpos], TASKBUFSIZ - tailpos);
+	}
 	else
 		amt = read(fd, &t->buf[tailpos], headpos - tailpos);
 
@@ -569,17 +581,40 @@ static void task_download(task_t *t, task_t *tracker_task)
 	// Read the file into the task buffer from the peer,
 	// and write it from the task buffer onto disk.
 	while (1) {
+		// Read segment into the task buffer
 		int ret = read_to_taskbuf(t->peer_fd, t);
-		if (ret == TBUF_ERROR) {
+		
+		// Check for a peer read error
+		if (ret == TBUF_ERROR) 
+		{
 			error("* Peer read error");
 			goto try_again;
-		} else if (ret == TBUF_END && t->head == t->tail)
-			/* End of file */
-			break;
+		} 
+		
+		// Check for an end of file
+		else if (ret == TBUF_END && t->head == t->tail)
+			break;	// End Of File
 
+		// Write segment into the task buffer
 		ret = write_from_taskbuf(t->disk_fd, t);
+		
+		// Check for a write error
 		if (ret == TBUF_ERROR) {
 			error("* Disk write error");
+			goto try_again;
+		}
+		
+		// EXERCISE 2B: PREVENT ENDLESS DATA
+		// Check to make sure we have not exceeded our maximum file size
+		// If we have, just try again.
+		// Make sure MAXIUMUM_FILE SIZE is set correctly
+		if(t->total_written > MAXIMUM_FILE_SIZE)
+		{
+			error("WARNING: PROBLEM DOWNLOADING '%s'\n", t->disk_filename);
+			error("WARNING: AMOUNT OF DATA SENT EXCEEDED THE MAXIMUM FILE SIZE\n");
+			error("WARNING: MAXIMUM FILE SIZE: %lu bytes\n", 
+						(unsigned long) MAXIMUM_FILE_SIZE);
+			error("WARNING: ATTEMPTING TO RESTART DOWNLOAD WITH NEW PEER\n");
 			goto try_again;
 		}
 	}
