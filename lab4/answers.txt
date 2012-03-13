@@ -71,21 +71,28 @@ already consider this to be the maximum file size. To test on a smaller
 upper limit, simply change the value of MAXIMUM_FILE_SIZE to something
 smaller, such as 1 MiB (2^20).
 
-NOTE:
-There may be problems with attackers who simply upload bytes very slowly.
-Because we are unable to distinguish between a peer who is legitimately 
-running very slowly and/or providing a large file, and a bad peer that is
-intentionally running slowly, the particular download thread will wait for
-the download to finish or for the size limit to be exceeded.
-However, because all downloads and uploads have their own threads, this 
-should not affect other files.
+4.  Block Intentionally Slow Peers
+Some of the bad peers on run-bad serve us data at very low speeds, typically
+at 4 bytes/read.
+To block peers who are serving us data at extremely low speeds, we set a 
+minimum transfer speed for peers who are serving us, as well as a number of
+samples to determine this transfer speed. Peers who do not meet this minimum
+requirement after a certain number of reads are rejected, and we try 
+downloading the file with a different peer.
+This means that we also may reject slow peers who upload below our minimum
+rate, but are not intentionally bad.
+The constants used are:
+ - MINIMUM_TRANSFER_RATE	minimum bytes/read required
+ - SPEED_SAMPLE_SIZE		# of samples to determine transfer rate
 
-
+5.  Verify File Integrity
+(This particular task is extra credit, and has not been implemented)
 
 # EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
 #    are they attacks?  (~3-10 sentences each)
-Download attacks:  Get the list of peers serving cat1.jpg and attempt to attack 
-each of them.
+
+Download attacks:  
+Get the list of peers serving cat1.jpg and attempt to attack each of them.
 First try to attack them by buffer overflow.  Send them a GET request with a 
 filename nearly 4 times filename buffer size, not null ended.  When the peer 
 attempts to strcpy the name they will cause segfaults if they have not 
@@ -99,10 +106,12 @@ Next attempt to clog them up by starting a lot of socket connections and
 requesting a valid file.  The peer may fill up their buffer or spend a lot of
 effort servicing these requests while we don't even look at the data they give
 us.
-Upload attack: When a peer connects, give them an unlimited data stream
-simply continue sending trash data to the peer without stopping.  The peer
-may have no way of knowing whether this is the valid file, and if it doesn't
-stop us from sending data, it's harddisk could fill up with useless data.
+
+Upload attack: 
+When a peer connects, give them an unlimited data stream simply continue sending 
+trash data to the peer without stopping.  The peer may have no way of knowing 
+whether this is the valid file, and if it doesn't stop us from sending data, 
+it's harddisk could fill up with useless data.
 
 
 # Extra credit problems
