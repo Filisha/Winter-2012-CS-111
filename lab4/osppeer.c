@@ -40,8 +40,8 @@ static int listen_port;
 // It is very difficult to actually reallocate the size of the task buffer,
 // espeiclaly when using parallel uploads and downloads. Therefore, we simply
 // made the task buffer 16 times larger to accomidate popular trackers
-#define TASKBUFSIZ	65536		// Increase the buffer size to 2^16 
-//#define TASKBUFSIZ	4096	// Size of task_t::buf  (2^12)
+//#define TASKBUFSIZ	65536		// Increase the buffer size to 2^16 
+#define TASKBUFSIZ	4096	// Size of task_t::buf  (2^12)
 
 #define FILENAMESIZ	256	// Size of task_t::filename
 
@@ -156,8 +156,21 @@ static void task_free(task_t *t)
 // halt and be retried if the file's size ever exceeds this value.
 // The 2 GiB is our recommended setting, since 32-bit systems only support
 // files that large; however, for testing purposes, we also have a 1 MiB setting
-		#define MAXIMUM_FILE_SIZE 2147483648	// 2^31, or 2 GiB
-//	#define MAXIMUM_FILE_SIZE 1048576			// 2^20, or 1 MiB
+#define MAXIMUM_FILE_SIZE 2147483648		// 2^31, or 2 GiB
+// #define MAXIMUM_FILE_SIZE 1048576			// 2^20, or 1 MiB
+
+
+// EXERCISE 2B: BLOCK INTENTIONALLY SLOW PEERS
+// Sometimes, a bad peer will attack us by serving us extremely slowly.
+// Therefore, we set a minimum data rate that every peer must serve us
+// at, or else we disconnect them and try again.
+// The minimum transfer rate is the minimum number of bytes we want to
+// receive after calling 'read_to_taskbuf'
+#define MINIMUM_TRANSFER_RATE 32
+// And the speed sample size is the number of reads we want to use to
+// average our transfer speed
+#define SPEED_SAMPLE_SIZE 10
+
 
 // Status of a read or write attempt.
 typedef enum taskbufresult {		
@@ -186,7 +199,7 @@ taskbufresult_t read_to_taskbuf(int fd, task_t *t)
 	}
 	else
 		amt = read(fd, &t->buf[tailpos], headpos - tailpos);
-
+	
 	if (amt == -1 && (errno == EINTR || errno == EAGAIN
 			  || errno == EWOULDBLOCK))
 		return TBUF_AGAIN;
@@ -578,6 +591,31 @@ static void task_download(task_t *t, task_t *tracker_task)
 		return;
 	}
 
+	
+	
+	// EXERCISE 2B: BLOCK INTENTIONALLY SLOW PEERS
+	// Here, we set up our variables to calculate how quickly a peer sends
+	// data to us, based on the last n samples the peer sent
+	// This is a general counter
+	int k = 0;
+	// This stores the size from our last buffer read
+	int last_read = 0;
+	// This stores our average buffer read rate
+	int avg_rate = 0;
+	// This is stores the number of samples we want
+	int speed_sample[SPEED_SAMPLE_SIZE];
+	// This keeps count of what sample we want to replace
+	int curr_sample;
+	// Initialize speed_sample so every element is at 10 times our
+	// minimum sample rate, to avoid bias for small files which may be sent
+	// slowly, but also finish quickly.
+	for(k = 0; k < SPEED_SAMPLE_SIZE; k++)
+	{
+		speed_sample[k] = 10 * MINIMUM_TRANSFER_RATE;
+	}
+	
+	
+	
 	// Read the file into the task buffer from the peer,
 	// and write it from the task buffer onto disk.
 	while (1) {
@@ -594,7 +632,7 @@ static void task_download(task_t *t, task_t *tracker_task)
 		// Check for an end of file
 		else if (ret == TBUF_END && t->head == t->tail)
 			break;	// End Of File
-
+		
 		// Write segment into the task buffer
 		ret = write_from_taskbuf(t->disk_fd, t);
 		
@@ -603,6 +641,7 @@ static void task_download(task_t *t, task_t *tracker_task)
 			error("* Disk write error");
 			goto try_again;
 		}
+		
 		
 		// EXERCISE 2B: PREVENT ENDLESS DATA
 		// Check to make sure we have not exceeded our maximum file size
@@ -614,6 +653,33 @@ static void task_download(task_t *t, task_t *tracker_task)
 			error("WARNING: AMOUNT OF DATA SENT EXCEEDED THE MAXIMUM FILE SIZE\n");
 			error("WARNING: MAXIMUM FILE SIZE: %lu bytes\n", 
 						(unsigned long) MAXIMUM_FILE_SIZE);
+			error("WARNING: ATTEMPTING TO RESTART DOWNLOAD WITH NEW PEER\n");
+			goto try_again;
+		}
+		
+		
+		// EXERCISE 2B: BLOCK INTENTIONALLY SLOW PEERS
+		// Increment the sample position, making sure it loops back to the start
+		// of the array if necessary, and update that element
+		curr_sample = (curr_sample + 1) % SPEED_SAMPLE_SIZE;
+		speed_sample[curr_sample] = t->total_written - last_read;
+		last_read = t->total_written;
+		// Find the average transfer rate
+		avg_rate = 0;
+		for(k = 0; k < SPEED_SAMPLE_SIZE; k++)
+		{
+			avg_rate += speed_sample[k];
+		}
+		avg_rate = avg_rate / SPEED_SAMPLE_SIZE;
+		// Check transfer rate against established minimum, and try again if we 
+		// are going too slowly
+		if(avg_rate < MINIMUM_TRANSFER_RATE)
+		{
+			error("WARNING: PROBLEM DOWNLOADING '%s'\n", t->disk_filename);
+			error("WARNING: THE PEER IS SERVING US VERY SLOWLY\n");
+			error("WARNING: MINIMUM TRANSFER RATE: %d bytes/read\n", 
+						MINIMUM_TRANSFER_RATE);
+			error("WARNING: CURRENT TRANSFER RATE: %d bytes/read\n", avg_rate);
 			error("WARNING: ATTEMPTING TO RESTART DOWNLOAD WITH NEW PEER\n");
 			goto try_again;
 		}
