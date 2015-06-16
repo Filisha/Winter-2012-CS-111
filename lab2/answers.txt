@@ -8,15 +8,9 @@
 # If you have any other information you'd like us to know, please add it at
 # the end of the file.
 
-# Partner 1
-Name: Cameron Solomon
-Student ID: 603 809 897
-Email: cameronjsolomon@ucla.edu
-
-# Partner 2
-Name: Ervin Sukardi
-Student ID: 203 808 277
-Email: Partner's Email Here
+#Author
+#Filisha Shah
+#404173368
 
 
 # Add any other information you'd like us to have below this line.
